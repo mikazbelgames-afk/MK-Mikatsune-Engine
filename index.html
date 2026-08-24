@@ -6,127 +6,386 @@
   <title>MK Mikatsune Engine v0.2.0</title>
   <link rel="stylesheet" href="./style.css">
 </head>
+
 <body>
   <div class="app">
+
     <aside class="panel">
       <h1>MK Mikatsune Engine</h1>
       <p>Rig + animación 2D ligera</p>
 
       <button id="add">Cargar pieza PNG</button>
-      <input id="file" type="file" accept="image/png,image/webp" hidden>
+      <input
+        id="file"
+        type="file"
+        accept="image/png,image/webp"
+        hidden
+      >
 
-      <button id="splitLayer" class="accent">✂ Separar capa</button>
-      <button id="undoSplit" disabled>↶ Deshacer última separación</button>
+      <button id="splitLayer" class="accent">
+        ✂ Separar capa
+      </button>
 
-      <button id="save">Guardar proyecto</button>
-      <input id="loadFile" type="file" accept="application/json" hidden>
-      <button id="load">Abrir proyecto</button>
+      <button id="undoSplit" disabled>
+        ↶ Deshacer última separación
+      </button>
 
-      <div class="section-title">Capas</div>
+      <button id="save">
+        Guardar proyecto
+      </button>
+
+      <input
+        id="loadFile"
+        type="file"
+        accept="application/json"
+        hidden
+      >
+
+      <button id="load">
+        Abrir proyecto
+      </button>
+
+      <div class="section-title">
+        Capas
+      </div>
+
       <div id="layers"></div>
     </aside>
 
     <main>
+
       <div class="toolbar">
         <button id="idle">⏸ Idle</button>
         <button id="blink">Parpadeo</button>
         <button id="reset">Reset</button>
       </div>
-      <canvas id="stage" width="1080" height="1080"></canvas>
+
+      <canvas
+        id="stage"
+        width="1080"
+        height="1080"
+      ></canvas>
+
     </main>
 
     <aside class="panel">
+
       <h2>Inspector</h2>
-      <label>Rol
+
+      <label>
+        Rol
+
         <select id="role">
-          <option>generic</option><option>body</option><option>head</option>
-          <option>earL</option><option>earR</option><option>eyeL</option>
-          <option>eyeR</option><option>mouth</option><option>paw</option>
-          <option>tail</option><option>crystal</option>
+          <option>generic</option>
+          <option>body</option>
+          <option>head</option>
+          <option>earL</option>
+          <option>earR</option>
+          <option>eyeL</option>
+          <option>eyeR</option>
+          <option>mouth</option>
+          <option>paw</option>
+          <option>tail</option>
+          <option>crystal</option>
         </select>
       </label>
-      <label>X<input id="x" type="number"></label>
-      <label>Y<input id="y" type="number"></label>
-      <label>Escala<input id="scale" type="number" step="0.01"></label>
-      <label>Rotación<input id="rotation" type="number" step="0.1"></label>
-      <label>Pivot X<input id="pivotX" type="number"></label>
-      <label>Pivot Y<input id="pivotY" type="number"></label>
 
-      <button id="runtime" type="button">Abrir runtime transparente</button>
-      <p id="runtimeStatus" class="hint"></p>
+      <label>
+        X
+        <input id="x" type="number">
+      </label>
+
+      <label>
+        Y
+        <input id="y" type="number">
+      </label>
+
+      <label>
+        Escala
+        <input
+          id="scale"
+          type="number"
+          step="0.01"
+        >
+      </label>
+
+      <label>
+        Rotación
+        <input
+          id="rotation"
+          type="number"
+          step="0.1"
+        >
+      </label>
+
+      <label>
+        Pivot X
+        <input id="pivotX" type="number">
+      </label>
+
+      <label>
+        Pivot Y
+        <input id="pivotY" type="number">
+      </label>
+
+      <button id="runtime" type="button">
+        Abrir runtime transparente
+      </button>
+
+      <p
+        id="runtimeStatus"
+        class="hint"
+      ></p>
+
     </aside>
+
   </div>
 
-  <div id="splitterModal" class="splitter-modal" aria-hidden="true">
+
+  <!-- =========================
+       SEPARADOR DE CAPAS
+  ========================== -->
+
+  <div
+    id="splitterModal"
+    class="splitter-modal"
+    aria-hidden="true"
+  >
+
     <div class="splitter-card">
+
       <div class="splitter-header">
+
         <div>
-          <h2>Separador de capas · V1</h2>
-          <p id="splitterSubtitle">Selecciona la parte que quieres convertir en una capa nueva.</p>
+          <h2>
+            Separador de capas · V1
+          </h2>
+
+          <p id="splitterSubtitle">
+            Selecciona la parte que quieres convertir en una capa nueva.
+          </p>
         </div>
-        <button id="splitClose" class="icon-btn" title="Cerrar">✕</button>
+
+        <button
+          id="splitClose"
+          class="icon-btn"
+          title="Cerrar"
+        >
+          ✕
+        </button>
+
       </div>
+
 
       <div class="splitter-grid">
+
+        <!-- HERRAMIENTAS -->
+
         <section class="splitter-tools">
-          <div class="section-title">Selección</div>
-          <button id="toolBrush" class="tool active">🖌 Pincel +</button>
-          <button id="toolErase" class="tool">⌫ Borrar máscara</button>
-          <button id="toolLasso" class="tool">〰 Lazo libre</button>
 
-          <label class="stack">Tamaño pincel
-            <input id="brushSize" type="range" min="4" max="180" value="48">
-            <span id="brushSizeValue">48 px</span>
+          <div class="section-title">
+            Selección
+          </div>
+
+          <button
+            id="toolBrush"
+            class="tool active"
+          >
+            🖌 Pincel +
+          </button>
+
+          <button
+            id="toolErase"
+            class="tool"
+          >
+            ⌫ Borrar máscara
+          </button>
+
+          <button
+            id="toolLasso"
+            class="tool"
+          >
+            〰 Lazo libre
+          </button>
+
+
+          <label class="stack">
+
+            Tamaño pincel
+
+            <input
+              id="brushSize"
+              type="range"
+              min="4"
+              max="180"
+              value="48"
+            >
+
+            <span id="brushSizeValue">
+              48 px
+            </span>
+
           </label>
 
-          <label class="stack">Opacidad máscara
-            <input id="maskOpacity" type="range" min="15" max="80" value="48">
-            <span id="maskOpacityValue">48%</span>
+
+          <label class="stack">
+
+            Opacidad máscara
+
+            <input
+              id="maskOpacity"
+              type="range"
+              min="15"
+              max="80"
+              value="48"
+            >
+
+            <span id="maskOpacityValue">
+              48%
+            </span>
+
           </label>
 
-          <button id="selectVisible">Seleccionar todo visible</button>
-          <button id="clearMask">Vaciar máscara</button>
-          <p class="hint">Tip: usa el lazo para una selección rápida y el pincel para corregir bordes.</p>
+
+          <button id="selectVisible">
+            Seleccionar todo visible
+          </button>
+
+          <button id="clearMask">
+            Vaciar máscara
+          </button>
+
+          <p class="hint">
+            Tip: usa el lazo para una selección rápida y el pincel para corregir bordes.
+          </p>
+
         </section>
+
+
+        <!-- CANVAS CENTRAL -->
 
         <section class="splitter-stage-wrap">
+
           <div class="checkerboard splitter-stage-shell">
+
             <canvas id="splitterCanvas"></canvas>
+
           </div>
-          <div id="splitterCursor" class="splitter-cursor" hidden></div>
+
+          <div
+            id="splitterCursor"
+            class="splitter-cursor"
+            hidden
+          ></div>
+
         </section>
+
+
+        <!-- RESULTADO -->
 
         <section class="splitter-output">
-          <div class="section-title">Nueva capa</div>
-          <label class="stack">Nombre
-            <input id="splitName" type="text" value="Pieza separada">
+
+          <div class="section-title">
+            Nueva capa
+          </div>
+
+
+          <label class="stack">
+
+            Nombre
+
+            <input
+              id="splitName"
+              type="text"
+              value="Pieza separada"
+            >
+
           </label>
-          <label class="stack">Rol
+
+
+          <label class="stack">
+
+            Rol
+
             <select id="splitRole">
-              <option>generic</option><option>body</option><option>head</option>
-              <option>earL</option><option>earR</option><option>eyeL</option>
-              <option>eyeR</option><option>mouth</option><option>paw</option>
-              <option>tail</option><option>crystal</option>
+
+              <option>generic</option>
+              <option>body</option>
+              <option>head</option>
+              <option>earL</option>
+              <option>earR</option>
+              <option>eyeL</option>
+              <option>eyeR</option>
+              <option>mouth</option>
+              <option>paw</option>
+              <option>tail</option>
+              <option>crystal</option>
+
             </select>
+
           </label>
+
 
           <label class="checkbox-row">
-            <input id="removeOriginal" type="checkbox" checked>
-            <span>Quitar la selección de la capa original</span>
+
+            <input
+              id="removeOriginal"
+              type="checkbox"
+              checked
+            >
+
+            <span>
+              Quitar la selección de la capa original
+            </span>
+
           </label>
 
-          <div class="split-preview checkerboard">
-            <canvas id="splitPreview" width="320" height="320"></canvas>
-          </div>
-          <p id="splitInfo" class="hint">Pinta una zona para ver la vista previa.</p>
 
-          <button id="extractLayer" class="accent big">Extraer como nueva capa</button>
-          <button id="splitCancel">Cancelar</button>
+          <div class="split-preview checkerboard">
+
+            <canvas
+              id="splitPreview"
+              width="320"
+              height="320"
+            ></canvas>
+
+          </div>
+
+
+          <p
+            id="splitInfo"
+            class="hint"
+          >
+            Pinta una zona para ver la vista previa.
+          </p>
+
+
+          <button
+            id="extractLayer"
+            class="accent big"
+          >
+            Extraer como nueva capa
+          </button>
+
+          <button id="splitCancel">
+            Cancelar
+          </button>
+
         </section>
+
       </div>
+
     </div>
+
   </div>
 
-  <script type="module" src="./src/editor.js"></script>
+
+  <!-- SCRIPT PRINCIPAL -->
+
+  <script
+    type="module"
+    src="./src/editor.js"
+  ></script>
+
 </body>
 </html>
