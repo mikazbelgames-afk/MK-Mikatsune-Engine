@@ -32,7 +32,6 @@ async function boot(){
   const url=new URL(location.href);
   const externalProject=url.searchParams.get('project');
   let loaded=false;
-
   if(externalProject) loaded=await loadFromProjectURL(externalProject);
 
   if(!loaded){
