@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>MK Mikatsune Engine v0.2</title>
+  <title>MK Mikatsune Engine v0.1.1</title>
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
@@ -11,14 +11,11 @@
     <aside class="panel">
       <h1>MK Mikatsune Engine</h1>
       <p>Rig + animación 2D ligera</p>
-
       <button id="add">Cargar pieza PNG</button>
       <input id="file" type="file" accept="image/png,image/webp" hidden>
-
       <button id="save">Guardar proyecto</button>
       <input id="loadFile" type="file" accept="application/json" hidden>
       <button id="load">Abrir proyecto</button>
-
       <div id="layers"></div>
     </aside>
 
@@ -33,31 +30,22 @@
 
     <aside class="panel">
       <h2>Inspector</h2>
-
       <label>Rol
         <select id="role">
-          <option>generic</option>
-          <option>body</option>
-          <option>head</option>
-          <option>earL</option>
-          <option>earR</option>
-          <option>eyeL</option>
-          <option>eyeR</option>
-          <option>mouth</option>
-          <option>paw</option>
-          <option>tail</option>
-          <option>crystal</option>
+          <option>generic</option><option>body</option><option>head</option>
+          <option>earL</option><option>earR</option><option>eyeL</option>
+          <option>eyeR</option><option>mouth</option><option>paw</option>
+          <option>tail</option><option>crystal</option>
         </select>
       </label>
-
       <label>X<input id="x" type="number"></label>
       <label>Y<input id="y" type="number"></label>
       <label>Escala<input id="scale" type="number" step="0.01"></label>
       <label>Rotación<input id="rotation" type="number" step="0.1"></label>
       <label>Pivot X<input id="pivotX" type="number"></label>
       <label>Pivot Y<input id="pivotY" type="number"></label>
-
-      <button id="runtime">Abrir runtime transparente</button>
+      <button id="runtime" type="button">Abrir runtime transparente</button>
+      <p id="runtimeStatus" style="font-size:12px;opacity:.75"></p>
     </aside>
   </div>
 
