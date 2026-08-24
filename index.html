@@ -3,18 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>MK Mikatsune Engine v0.2.0</title>
+  <title>MK Mikatsune Engine v0.2.1</title>
   <link rel="stylesheet" href="./style.css">
 </head>
 
 <body>
+
   <div class="app">
 
     <aside class="panel">
+
       <h1>MK Mikatsune Engine</h1>
       <p>Rig + animación 2D ligera</p>
 
-      <button id="add">Cargar pieza PNG</button>
+      <button id="add">
+        Cargar pieza PNG
+      </button>
+
       <input
         id="file"
         type="file"
@@ -22,11 +27,17 @@
         hidden
       >
 
-      <button id="splitLayer" class="accent">
+      <button
+        id="splitLayer"
+        class="accent"
+      >
         ✂ Separar capa
       </button>
 
-      <button id="undoSplit" disabled>
+      <button
+        id="undoSplit"
+        disabled
+      >
         ↶ Deshacer última separación
       </button>
 
@@ -45,63 +56,220 @@
         Abrir proyecto
       </button>
 
+
       <div class="section-title">
         Capas
       </div>
 
-      <div id="layers"></div>
-    </aside>
 
-    <main>
+      <div class="layer-master-controls">
 
-      <div class="toolbar">
-        <button id="idle">⏸ Idle</button>
-        <button id="blink">Parpadeo</button>
-        <button id="reset">Reset</button>
+        <button
+          id="showAllLayers"
+          type="button"
+        >
+          👁 Mostrar todas
+        </button>
+
+        <button
+          id="hideAllLayers"
+          type="button"
+        >
+          ◉ Ocultar todas
+        </button>
+
       </div>
 
-      <canvas
-        id="stage"
-        width="1080"
-        height="1080"
-      ></canvas>
+
+      <div id="layers"></div>
+
+    </aside>
+
+
+    <!-- ==========================
+         LIENZO
+    =========================== -->
+
+    <main id="stageArea">
+
+      <div class="toolbar">
+
+        <button id="idle">
+          ⏸ Idle
+        </button>
+
+        <button id="blink">
+          Parpadeo
+        </button>
+
+        <button id="reset">
+          Reset
+        </button>
+
+
+        <!-- ZOOM -->
+
+        <div
+          class="zoom-controls"
+          aria-label="Zoom del lienzo"
+        >
+
+          <button
+            id="zoomOut"
+            type="button"
+            title="Alejar"
+          >
+            −
+          </button>
+
+
+          <input
+            id="zoomRange"
+            type="range"
+            min="25"
+            max="200"
+            step="5"
+            value="100"
+          >
+
+
+          <button
+            id="zoomIn"
+            type="button"
+            title="Acercar"
+          >
+            +
+          </button>
+
+
+          <button
+            id="zoomFit"
+            type="button"
+            title="Ajustar al área"
+          >
+            Ajustar
+          </button>
+
+
+          <span id="zoomValue">
+            100%
+          </span>
+
+        </div>
+
+      </div>
+
+
+      <div
+        id="stageViewport"
+        class="stage-viewport"
+      >
+
+        <div
+          id="stageShell"
+          class="stage-shell checkerboard"
+        >
+
+          <canvas
+            id="stage"
+            width="1080"
+            height="1080"
+          ></canvas>
+
+        </div>
+
+      </div>
 
     </main>
+
+
+    <!-- ==========================
+         INSPECTOR
+    =========================== -->
 
     <aside class="panel">
 
       <h2>Inspector</h2>
 
+
+      <label>
+        Nombre
+
+        <input
+          id="name"
+          type="text"
+        >
+      </label>
+
+
       <label>
         Rol
 
         <select id="role">
+
           <option>generic</option>
+
           <option>body</option>
+
           <option>head</option>
+
           <option>earL</option>
+
           <option>earR</option>
+
           <option>eyeL</option>
+
           <option>eyeR</option>
+
           <option>mouth</option>
+
           <option>paw</option>
+
           <option>tail</option>
+
           <option>crystal</option>
+
         </select>
+
       </label>
+
+
+      <label class="checkbox-row inspector-visible">
+
+        <input
+          id="visible"
+          type="checkbox"
+          checked
+        >
+
+        <span>
+          Mostrar esta capa
+        </span>
+
+      </label>
+
 
       <label>
         X
-        <input id="x" type="number">
+        <input
+          id="x"
+          type="number"
+        >
       </label>
+
 
       <label>
         Y
-        <input id="y" type="number">
+        <input
+          id="y"
+          type="number"
+        >
       </label>
+
 
       <label>
         Escala
+
         <input
           id="scale"
           type="number"
@@ -109,8 +277,10 @@
         >
       </label>
 
+
       <label>
         Rotación
+
         <input
           id="rotation"
           type="number"
@@ -118,19 +288,34 @@
         >
       </label>
 
+
       <label>
         Pivot X
-        <input id="pivotX" type="number">
+
+        <input
+          id="pivotX"
+          type="number"
+        >
       </label>
+
 
       <label>
         Pivot Y
-        <input id="pivotY" type="number">
+
+        <input
+          id="pivotY"
+          type="number"
+        >
       </label>
 
-      <button id="runtime" type="button">
+
+      <button
+        id="runtime"
+        type="button"
+      >
         Abrir runtime transparente
       </button>
+
 
       <p
         id="runtimeStatus"
@@ -142,9 +327,9 @@
   </div>
 
 
-  <!-- =========================
+  <!-- ==========================
        SEPARADOR DE CAPAS
-  ========================== -->
+  =========================== -->
 
   <div
     id="splitterModal"
@@ -154,17 +339,21 @@
 
     <div class="splitter-card">
 
+
       <div class="splitter-header">
 
         <div>
+
           <h2>
-            Separador de capas · V1
+            Separador de capas · V1.1
           </h2>
 
           <p id="splitterSubtitle">
             Selecciona la parte que quieres convertir en una capa nueva.
           </p>
+
         </div>
+
 
         <button
           id="splitClose"
@@ -179,6 +368,7 @@
 
       <div class="splitter-grid">
 
+
         <!-- HERRAMIENTAS -->
 
         <section class="splitter-tools">
@@ -187,6 +377,7 @@
             Selección
           </div>
 
+
           <button
             id="toolBrush"
             class="tool active"
@@ -194,12 +385,14 @@
             🖌 Pincel +
           </button>
 
+
           <button
             id="toolErase"
             class="tool"
           >
             ⌫ Borrar máscara
           </button>
+
 
           <button
             id="toolLasso"
@@ -251,18 +444,21 @@
             Seleccionar todo visible
           </button>
 
+
           <button id="clearMask">
             Vaciar máscara
           </button>
 
+
           <p class="hint">
-            Tip: usa el lazo para una selección rápida y el pincel para corregir bordes.
+            Tip: usa el lazo para una selección rápida
+            y el pincel para corregir bordes.
           </p>
 
         </section>
 
 
-        <!-- CANVAS CENTRAL -->
+        <!-- LIENZO DEL SEPARADOR -->
 
         <section class="splitter-stage-wrap">
 
@@ -271,6 +467,7 @@
             <canvas id="splitterCanvas"></canvas>
 
           </div>
+
 
           <div
             id="splitterCursor"
@@ -284,6 +481,7 @@
         <!-- RESULTADO -->
 
         <section class="splitter-output">
+
 
           <div class="section-title">
             Nueva capa
@@ -310,15 +508,25 @@
             <select id="splitRole">
 
               <option>generic</option>
+
               <option>body</option>
+
               <option>head</option>
+
               <option>earL</option>
+
               <option>earR</option>
+
               <option>eyeL</option>
+
               <option>eyeR</option>
+
               <option>mouth</option>
+
               <option>paw</option>
+
               <option>tail</option>
+
               <option>crystal</option>
 
             </select>
@@ -367,6 +575,7 @@
             Extraer como nueva capa
           </button>
 
+
           <button id="splitCancel">
             Cancelar
           </button>
@@ -379,8 +588,6 @@
 
   </div>
 
-
-  <!-- SCRIPT PRINCIPAL -->
 
   <script
     type="module"
