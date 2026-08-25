@@ -1,34 +1,21 @@
 /* =========================================================
    MK MIKATSUNE ENGINE
-   Animation Core v0.2.2
-   =========================================================
+   Animation Core v0.2.4 — Motion Stack
 
-   Soporta:
+   Orden de composición:
 
-   - Timeline
-   - Keyframes de transformación
-   - Interpolación suave
-   - Keyframes de visibilidad
-   - Grupo / Estado
-   - Cambio de PNG por estados
-   - Loop
-   - Scrubbing
-   - Movimiento orgánico
-   - Intervalos aleatorios
-   - Tics simples y dobles
+   Pose / Keyframes base
+   + Respiración continua
+   + Movimiento orgánico
+   + Tic ocasional
+   = Pose final
    ========================================================= */
 
-
 const clamp = (value, min, max) =>
-  Math.max(
-    min,
-    Math.min(max, value)
-  );
-
+  Math.max(min, Math.min(max, value));
 
 const lerp = (a, b, t) =>
   a + (b - a) * t;
-
 
 const randomRange = (min, max) =>
   min + Math.random() * (max - min);
@@ -36,36 +23,167 @@ const randomRange = (min, max) =>
 
 /* =========================================================
    EASING
-   Movimiento suave entre fotogramas
    ========================================================= */
 
 function smoothstep(t) {
-
   t = clamp(t, 0, 1);
-
-  return (
-    t *
-    t *
-    (3 - 2 * t)
-  );
+  return t * t * (3 - 2 * t);
 }
 
 
 /* =========================================================
-   NORMALIZAR KEYFRAME
+   RESPIRACIÓN
+   ========================================================= */
+
+function defaultBreathing(role = 'generic') {
+  const base = {
+    enabled: false,
+    cycle: 5.2,
+    y: 0,
+    scale: 0,
+    rotation: 0,
+    phase: 0
+  };
+
+  switch (role) {
+    case 'body':
+      return {
+        enabled: true,
+        cycle: 5.2,
+        y: 2.2,
+        scale: 0.0045,
+        rotation: 0.08,
+        phase: 0
+      };
+
+    case 'head':
+      return {
+        enabled: true,
+        cycle: 5.2,
+        y: 1.4,
+        scale: 0.0025,
+        rotation: 0.12,
+        phase: 0
+      };
+
+    case 'eyeL':
+    case 'eyeR':
+    case 'mouth':
+      return {
+        enabled: true,
+        cycle: 5.2,
+        y: 1.4,
+        scale: 0,
+        rotation: 0,
+        phase: 0
+      };
+
+    case 'earL':
+      return {
+        enabled: true,
+        cycle: 5.2,
+        y: 1.1,
+        scale: 0,
+        rotation: 0.22,
+        phase: -0.05
+      };
+
+    case 'earR':
+      return {
+        enabled: true,
+        cycle: 5.2,
+        y: 1.1,
+        scale: 0,
+        rotation: -0.22,
+        phase: 0.05
+      };
+
+    case 'tail':
+      return {
+        enabled: true,
+        cycle: 5.6,
+        y: 0.8,
+        scale: 0,
+        rotation: 0.35,
+        phase: 0.12
+      };
+
+    case 'crystal':
+      return {
+        enabled: true,
+        cycle: 5.2,
+        y: 2.0,
+        scale: 0,
+        rotation: 0.45,
+        phase: 0.03
+      };
+
+    default:
+      return base;
+  }
+}
+
+
+function normalizeBreathing(raw, role) {
+  const base =
+    defaultBreathing(role);
+
+  return {
+    enabled:
+      raw?.enabled ??
+      base.enabled,
+
+    cycle:
+      Math.max(
+        0.5,
+        Number(
+          raw?.cycle ??
+          base.cycle
+        ) ||
+        base.cycle
+      ),
+
+    y:
+      Number(
+        raw?.y ??
+        base.y
+      ) || 0,
+
+    scale:
+      Number(
+        raw?.scale ??
+        base.scale
+      ) || 0,
+
+    rotation:
+      Number(
+        raw?.rotation ??
+        base.rotation
+      ) || 0,
+
+    phase:
+      Number(
+        raw?.phase ??
+        base.phase
+      ) || 0
+  };
+}
+
+
+/* =========================================================
+   KEYFRAMES
    ========================================================= */
 
 function normalizeKeyframe(raw = {}) {
-
   return {
-
     id:
       raw.id ||
       crypto.randomUUID(),
 
     time:
       Number(
-        raw.time ?? 0
+        raw.time ??
+        0
       ),
 
     x:
@@ -95,28 +213,25 @@ function normalizeKeyframe(raw = {}) {
 }
 
 
-/* =========================================================
-   NORMALIZAR KEYFRAME DE ESTADO
-   ========================================================= */
-
 function normalizeStateKeyframe(raw = {}) {
-
   return {
-
     id:
       raw.id ||
       crypto.randomUUID(),
 
     time:
       Number(
-        raw.time ?? 0
+        raw.time ??
+        0
       ),
 
     group:
-      raw.group || '',
+      raw.group ||
+      '',
 
     state:
-      raw.state || ''
+      raw.state ||
+      ''
   };
 }
 
@@ -128,23 +243,32 @@ function normalizeStateKeyframe(raw = {}) {
 export class Animator {
 
   constructor(engine) {
+    this.engine =
+      engine;
 
-    this.engine = engine;
+    this.playing =
+      false;
 
-    this.playing = false;
+    this.currentTime =
+      0;
 
-    this.currentTime = 0;
+    this.lastFrameTime =
+      null;
 
-    this.lastFrameTime = null;
+    this.animationFrame =
+      null;
 
-    this.animationFrame = null;
+    this.onTimeChange =
+      null;
 
-    this.onTimeChange = null;
-
-    this.onPlayChange = null;
+    this.onPlayChange =
+      null;
 
     this.manualStates =
       new Map();
+
+    this.motionStart =
+      performance.now();
 
     this._boundLoop =
       this._loop.bind(this);
@@ -152,31 +276,30 @@ export class Animator {
 
 
   /* =======================================================
-     CONFIGURACIÓN GENERAL
+     GENERAL
      ======================================================= */
 
   get animation() {
-
     return this.engine.animation;
   }
 
 
   get duration() {
-
     return Math.max(
       0.1,
       Number(
-        this.animation.duration || 10
+        this.animation.duration ||
+        10
       )
     );
   }
 
 
   setDuration(value) {
-
     const duration =
       clamp(
-        Number(value) || 10,
+        Number(value) ||
+        10,
         0.1,
         120
       );
@@ -184,16 +307,13 @@ export class Animator {
     this.animation.duration =
       duration;
 
-
     if (
       this.currentTime >
       duration
     ) {
-
       this.currentTime =
         duration;
     }
-
 
     this.evaluate(
       this.currentTime,
@@ -203,9 +323,49 @@ export class Animator {
 
 
   setLoop(value) {
-
     this.animation.loop =
       Boolean(value);
+  }
+
+
+  /* =======================================================
+     RESPIRACIÓN
+     ======================================================= */
+
+  getBreathingConfig(layer) {
+    if (!layer) {
+      return normalizeBreathing(
+        null,
+        'generic'
+      );
+    }
+
+    return normalizeBreathing(
+      layer.breathing,
+      layer.role
+    );
+  }
+
+
+  setBreathingConfig(
+    layer,
+    patch = {}
+  ) {
+    if (!layer) {
+      return null;
+    }
+
+    const current =
+      this.getBreathingConfig(
+        layer
+      );
+
+    layer.breathing = {
+      ...current,
+      ...patch
+    };
+
+    return layer.breathing;
   }
 
 
@@ -214,28 +374,22 @@ export class Animator {
      ======================================================= */
 
   play() {
-
-    if (
-      this.playing
-    ) {
+    if (this.playing) {
       return;
     }
 
-
-    this.playing = true;
+    this.playing =
+      true;
 
     this.lastFrameTime =
       performance.now();
 
-
     this.resetOrganic();
-
 
     this.animationFrame =
       requestAnimationFrame(
         this._boundLoop
       );
-
 
     this.onPlayChange?.(
       true
@@ -243,32 +397,21 @@ export class Animator {
   }
 
 
-  /* =======================================================
-     PAUSA
-     ======================================================= */
-
   pause() {
-
-    if (
-      !this.playing
-    ) {
+    if (!this.playing) {
       return;
     }
-
 
     this.playing =
       false;
 
-
     if (
       this.animationFrame
     ) {
-
       cancelAnimationFrame(
         this.animationFrame
       );
     }
-
 
     this.animationFrame =
       null;
@@ -276,22 +419,20 @@ export class Animator {
     this.lastFrameTime =
       null;
 
-
     this.onPlayChange?.(
       false
     );
   }
 
 
-  /* =======================================================
-     STOP
-     ======================================================= */
-
   stop() {
-
     this.pause();
 
-    this.currentTime = 0;
+    this.currentTime =
+      0;
+
+    this.motionStart =
+      performance.now();
 
     this.resetOrganic();
 
@@ -300,9 +441,7 @@ export class Animator {
       false
     );
 
-
     this.engine.draw();
-
 
     this.onTimeChange?.(
       this.currentTime
@@ -310,28 +449,21 @@ export class Animator {
   }
 
 
-  /* =======================================================
-     SEEK
-     ======================================================= */
-
   seek(time) {
-
     this.currentTime =
       clamp(
-        Number(time) || 0,
+        Number(time) ||
+        0,
         0,
         this.duration
       );
-
 
     this.evaluate(
       this.currentTime,
       false
     );
 
-
     this.engine.draw();
-
 
     this.onTimeChange?.(
       this.currentTime
@@ -340,17 +472,13 @@ export class Animator {
 
 
   /* =======================================================
-     LOOP INTERNO
+     LOOP
      ======================================================= */
 
   _loop(now) {
-
-    if (
-      !this.playing
-    ) {
+    if (!this.playing) {
       return;
     }
-
 
     const delta =
       Math.min(
@@ -361,30 +489,24 @@ export class Animator {
         ) / 1000
       );
 
-
     this.lastFrameTime =
       now;
 
-
     this.currentTime +=
       delta;
-
 
     if (
       this.currentTime >
       this.duration
     ) {
-
       if (
         this.animation.loop
       ) {
-
         this.currentTime =
           this.currentTime %
           this.duration;
 
       } else {
-
         this.currentTime =
           this.duration;
 
@@ -392,26 +514,19 @@ export class Animator {
       }
     }
 
-
     this.evaluate(
       this.currentTime,
       true,
       now
     );
 
-
     this.engine.draw();
-
 
     this.onTimeChange?.(
       this.currentTime
     );
 
-
-    if (
-      this.playing
-    ) {
-
+    if (this.playing) {
       this.animationFrame =
         requestAnimationFrame(
           this._boundLoop
@@ -421,35 +536,43 @@ export class Animator {
 
 
   /* =======================================================
-     EVALUAR ANIMACIÓN
+     MOTION STACK
      ======================================================= */
 
   evaluate(
     time,
-    organic = false,
+    motion = false,
     now = performance.now()
   ) {
-
     this.engine.resetRuntime();
 
-
+    /*
+     * 1. Pose / Timeline
+     */
     this.applyLayerKeyframes(
       time
     );
 
-
+    /*
+     * 2. Estados
+     */
     this.applyStateKeyframes(
       time
     );
 
-
     this.applyManualStates();
 
+    if (motion) {
+      /*
+       * 3. Respiración
+       */
+      this.applyBreathing(
+        now
+      );
 
-    if (
-      organic
-    ) {
-
+      /*
+       * 4. Tics orgánicos
+       */
       this.applyOrganic(
         now
       );
@@ -458,11 +581,12 @@ export class Animator {
 
 
   /* =======================================================
-     KEYFRAMES DE CAPA
+     KEYFRAMES CAPA
      ======================================================= */
 
-  getLayerKeyframes(layerId) {
-
+  getLayerKeyframes(
+    layerId
+  ) {
     const store =
       this.animation
         .layerKeyframes ||
@@ -471,15 +595,12 @@ export class Animator {
           .layerKeyframes = {}
       );
 
-
-    const list =
+    return (
       store[layerId] ||
       (
         store[layerId] = []
-      );
-
-
-    return list;
+      )
+    );
   }
 
 
@@ -487,23 +608,17 @@ export class Animator {
     layer,
     time = this.currentTime
   ) {
-
-    if (
-      !layer
-    ) {
+    if (!layer) {
       return null;
     }
-
 
     const list =
       this.getLayerKeyframes(
         layer.id
       );
 
-
     const keyframe =
       normalizeKeyframe({
-
         time,
 
         x:
@@ -531,32 +646,24 @@ export class Animator {
           layer.visible
       });
 
-
-    /*
-     * Si ya existe un keyframe
-     * prácticamente en el mismo
-     * tiempo, lo reemplazamos.
-     */
-
     const existingIndex =
       list.findIndex(
         item =>
           Math.abs(
             item.time -
             keyframe.time
-          ) < 0.015
+          ) <
+          0.015
       );
 
-
     if (
-      existingIndex >= 0
+      existingIndex >=
+      0
     ) {
-
       keyframe.id =
         list[
           existingIndex
         ].id;
-
 
       list[
         existingIndex
@@ -564,18 +671,16 @@ export class Animator {
         keyframe;
 
     } else {
-
       list.push(
         keyframe
       );
     }
 
-
     list.sort(
       (a, b) =>
-        a.time - b.time
+        a.time -
+        b.time
     );
-
 
     return keyframe;
   }
@@ -586,41 +691,36 @@ export class Animator {
     time = this.currentTime,
     tolerance = 0.25
   ) {
-
     const list =
       this.getLayerKeyframes(
         layerId
       );
 
-
-    if (
-      !list.length
-    ) {
+    if (!list.length) {
       return false;
     }
 
-
-    let bestIndex = -1;
+    let bestIndex =
+      -1;
 
     let bestDistance =
       Infinity;
 
-
     list.forEach(
-      (keyframe, index) => {
-
+      (
+        keyframe,
+        index
+      ) => {
         const distance =
           Math.abs(
             keyframe.time -
             time
           );
 
-
         if (
           distance <
           bestDistance
         ) {
-
           bestDistance =
             distance;
 
@@ -630,46 +730,39 @@ export class Animator {
       }
     );
 
-
     if (
-      bestIndex < 0 ||
+      bestIndex <
+        0 ||
       bestDistance >
-      tolerance
+        tolerance
     ) {
-
       return false;
     }
-
 
     list.splice(
       bestIndex,
       1
     );
 
-
     return true;
   }
 
 
-  applyLayerKeyframes(time) {
-
+  applyLayerKeyframes(
+    time
+  ) {
     for (
       const layer
       of this.engine.layers
     ) {
-
       const list =
         this.getLayerKeyframes(
           layer.id
         );
 
-
-      if (
-        !list.length
-      ) {
+      if (!list.length) {
         continue;
       }
-
 
       const sorted =
         [...list]
@@ -678,15 +771,9 @@ export class Animator {
           )
           .sort(
             (a, b) =>
-              a.time - b.time
+              a.time -
+              b.time
           );
-
-
-      /*
-       * Antes del primer keyframe:
-       * mantenemos la transformación
-       * original de la capa.
-       */
 
       if (
         time <
@@ -695,59 +782,56 @@ export class Animator {
         continue;
       }
 
-
-      /*
-       * Después del último:
-       * mantener último estado.
-       */
-
       if (
         time >=
         sorted[
-          sorted.length - 1
+          sorted.length -
+          1
         ].time
       ) {
-
         this.applyKeyframeValues(
           layer,
           sorted[
-            sorted.length - 1
+            sorted.length -
+            1
           ]
         );
 
         continue;
       }
 
+      let left =
+        null;
 
-      let left = null;
-
-      let right = null;
-
+      let right =
+        null;
 
       for (
         let i = 0;
         i <
-        sorted.length - 1;
+        sorted.length -
+        1;
         i++
       ) {
-
         if (
           time >=
-          sorted[i].time &&
+            sorted[i].time &&
           time <=
-          sorted[i + 1].time
+            sorted[
+              i + 1
+            ].time
         ) {
-
           left =
             sorted[i];
 
           right =
-            sorted[i + 1];
+            sorted[
+              i + 1
+            ];
 
           break;
         }
       }
-
 
       if (
         !left ||
@@ -756,7 +840,6 @@ export class Animator {
         continue;
       }
 
-
       const span =
         Math.max(
           0.0001,
@@ -764,22 +847,17 @@ export class Animator {
           left.time
         );
 
-
-      let t =
-        (
-          time -
-          left.time
-        ) /
-        span;
-
-
-      t =
-        smoothstep(t);
-
+      const t =
+        smoothstep(
+          (
+            time -
+            left.time
+          ) /
+          span
+        );
 
       const runtime =
         layer.runtime;
-
 
       runtime.x =
         this.interpolateValue(
@@ -789,7 +867,6 @@ export class Animator {
           t
         );
 
-
       runtime.y =
         this.interpolateValue(
           left.y,
@@ -797,7 +874,6 @@ export class Animator {
           layer.y,
           t
         );
-
 
       runtime.scale =
         this.interpolateValue(
@@ -807,7 +883,6 @@ export class Animator {
           t
         );
 
-
       runtime.rotation =
         this.interpolateValue(
           left.rotation,
@@ -815,7 +890,6 @@ export class Animator {
           layer.rotation,
           t
         );
-
 
       runtime.opacity =
         this.interpolateValue(
@@ -825,49 +899,25 @@ export class Animator {
           t
         );
 
+      runtime.pivotX =
+        this.interpolateValue(
+          left.pivotX,
+          right.pivotX,
+          layer.pivotX,
+          t
+        );
 
-      /*
-       * Pivote:
-       * también se puede animar.
-       */
-
-      if (
-        left.pivotX !== undefined ||
-        right.pivotX !== undefined
-      ) {
-
-        runtime.pivotX =
-          this.interpolateValue(
-            left.pivotX,
-            right.pivotX,
-            layer.pivotX,
-            t
-          );
-      }
-
-
-      if (
-        left.pivotY !== undefined ||
-        right.pivotY !== undefined
-      ) {
-
-        runtime.pivotY =
-          this.interpolateValue(
-            left.pivotY,
-            right.pivotY,
-            layer.pivotY,
-            t
-          );
-      }
-
-
-      /*
-       * Visible no se interpola.
-       * Es un cambio instantáneo.
-       */
+      runtime.pivotY =
+        this.interpolateValue(
+          left.pivotY,
+          right.pivotY,
+          layer.pivotY,
+          t
+        );
 
       runtime.visible =
-        left.visible !== undefined
+        left.visible !==
+        undefined
           ? left.visible
           : layer.visible;
     }
@@ -880,18 +930,17 @@ export class Animator {
     fallback,
     t
   ) {
-
     const start =
       a !== undefined
         ? Number(a)
-        : Number(fallback);
-
+        : Number(
+            fallback
+          );
 
     const end =
       b !== undefined
         ? Number(b)
         : start;
-
 
     return lerp(
       start,
@@ -905,29 +954,32 @@ export class Animator {
     layer,
     keyframe
   ) {
-
     const runtime =
       layer.runtime;
 
-
     if (
-      keyframe.x !== undefined
+      keyframe.x !==
+      undefined
     ) {
       runtime.x =
-        Number(keyframe.x);
+        Number(
+          keyframe.x
+        );
     }
 
-
     if (
-      keyframe.y !== undefined
+      keyframe.y !==
+      undefined
     ) {
       runtime.y =
-        Number(keyframe.y);
+        Number(
+          keyframe.y
+        );
     }
 
-
     if (
-      keyframe.scale !== undefined
+      keyframe.scale !==
+      undefined
     ) {
       runtime.scale =
         Number(
@@ -935,9 +987,9 @@ export class Animator {
         );
     }
 
-
     if (
-      keyframe.rotation !== undefined
+      keyframe.rotation !==
+      undefined
     ) {
       runtime.rotation =
         Number(
@@ -945,9 +997,9 @@ export class Animator {
         );
     }
 
-
     if (
-      keyframe.opacity !== undefined
+      keyframe.opacity !==
+      undefined
     ) {
       runtime.opacity =
         Number(
@@ -955,9 +1007,29 @@ export class Animator {
         );
     }
 
+    if (
+      keyframe.pivotX !==
+      undefined
+    ) {
+      runtime.pivotX =
+        Number(
+          keyframe.pivotX
+        );
+    }
 
     if (
-      keyframe.visible !== undefined
+      keyframe.pivotY !==
+      undefined
+    ) {
+      runtime.pivotY =
+        Number(
+          keyframe.pivotY
+        );
+    }
+
+    if (
+      keyframe.visible !==
+      undefined
     ) {
       runtime.visible =
         Boolean(
@@ -969,10 +1041,6 @@ export class Animator {
 
   /* =======================================================
      ESTADOS
-     Ej:
-       Grupo: Ojos
-       Estado: Abierto
-       Estado: Cerrado
      ======================================================= */
 
   addStateKeyframe(
@@ -980,27 +1048,24 @@ export class Animator {
     state,
     time = this.currentTime
   ) {
-
     group =
       String(
-        group || ''
+        group ||
+        ''
       ).trim();
-
 
     state =
       String(
-        state || ''
+        state ||
+        ''
       ).trim();
-
 
     if (
       !group ||
       !state
     ) {
-
       return null;
     }
-
 
     const list =
       this.animation
@@ -1010,43 +1075,33 @@ export class Animator {
           .stateKeyframes = []
       );
 
-
     const keyframe =
       normalizeStateKeyframe({
-
         time,
-
         group,
-
         state
       });
-
-
-    /*
-     * Un grupo solo puede tener
-     * un estado en el mismo instante.
-     */
 
     const existingIndex =
       list.findIndex(
         item =>
-          item.group === group &&
+          item.group ===
+            group &&
           Math.abs(
             item.time -
             time
-          ) < 0.015
+          ) <
+            0.015
       );
 
-
     if (
-      existingIndex >= 0
+      existingIndex >=
+      0
     ) {
-
       keyframe.id =
         list[
           existingIndex
         ].id;
-
 
       list[
         existingIndex
@@ -1054,18 +1109,16 @@ export class Animator {
         keyframe;
 
     } else {
-
       list.push(
         keyframe
       );
     }
 
-
     list.sort(
       (a, b) =>
-        a.time - b.time
+        a.time -
+        b.time
     );
-
 
     return keyframe;
   }
@@ -1075,72 +1128,66 @@ export class Animator {
     time = this.currentTime,
     tolerance = 0.25
   ) {
-
     const list =
       this.animation
         .stateKeyframes ||
       [];
 
-
-    if (
-      !list.length
-    ) {
+    if (!list.length) {
       return false;
     }
 
-
-    let index = -1;
+    let index =
+      -1;
 
     let distance =
       Infinity;
 
-
     list.forEach(
-      (item, i) => {
-
+      (
+        item,
+        i
+      ) => {
         const current =
           Math.abs(
             item.time -
             time
           );
 
-
         if (
           current <
           distance
         ) {
-
           distance =
             current;
 
-          index = i;
+          index =
+            i;
         }
       }
     );
 
-
     if (
-      index < 0 ||
+      index <
+        0 ||
       distance >
-      tolerance
+        tolerance
     ) {
-
       return false;
     }
-
 
     list.splice(
       index,
       1
     );
 
-
     return true;
   }
 
 
-  applyStateKeyframes(time) {
-
+  applyStateKeyframes(
+    time
+  ) {
     const keyframes =
       (
         this.animation
@@ -1152,19 +1199,17 @@ export class Animator {
         )
         .sort(
           (a, b) =>
-            a.time - b.time
+            a.time -
+            b.time
         );
-
 
     const activeStates =
       new Map();
-
 
     for (
       const keyframe
       of keyframes
     ) {
-
       if (
         keyframe.time >
         time
@@ -1172,19 +1217,16 @@ export class Animator {
         break;
       }
 
-
       if (
         keyframe.group &&
         keyframe.state
       ) {
-
         activeStates.set(
           keyframe.group,
           keyframe.state
         );
       }
     }
-
 
     for (
       const [
@@ -1193,7 +1235,6 @@ export class Animator {
       ]
       of activeStates
     ) {
-
       this.applyGroupState(
         group,
         state
@@ -1202,26 +1243,21 @@ export class Animator {
   }
 
 
-  /* =======================================================
-     ACTIVAR ESTADO MANUAL
-     ======================================================= */
-
   setGroupState(
     group,
     state
   ) {
-
     group =
       String(
-        group || ''
+        group ||
+        ''
       ).trim();
-
 
     state =
       String(
-        state || ''
+        state ||
+        ''
       ).trim();
-
 
     if (
       !group ||
@@ -1230,42 +1266,37 @@ export class Animator {
       return;
     }
 
-
     this.manualStates.set(
       group,
       state
     );
 
-
     this.evaluate(
       this.currentTime,
       false
     );
-
 
     this.engine.draw();
   }
 
 
-  clearGroupState(group) {
-
+  clearGroupState(
+    group
+  ) {
     this.manualStates.delete(
       group
     );
-
 
     this.evaluate(
       this.currentTime,
       false
     );
-
 
     this.engine.draw();
   }
 
 
   applyManualStates() {
-
     for (
       const [
         group,
@@ -1273,7 +1304,6 @@ export class Animator {
       ]
       of this.manualStates
     ) {
-
       this.applyGroupState(
         group,
         state
@@ -1286,12 +1316,10 @@ export class Animator {
     group,
     state
   ) {
-
     for (
       const layer
       of this.engine.layers
     ) {
-
       if (
         layer.group !==
         group
@@ -1299,16 +1327,118 @@ export class Animator {
         continue;
       }
 
+      if (!layer.state) {
+        continue;
+      }
+
+      layer.runtime.visible =
+        layer.state ===
+        state;
+    }
+  }
+
+
+  /* =======================================================
+     RESPIRACIÓN ADITIVA
+     ======================================================= */
+
+  applyBreathing(now) {
+    const elapsed =
+      (
+        now -
+        this.motionStart
+      ) / 1000;
+
+    for (
+      const layer
+      of this.engine.layers
+    ) {
+      const config =
+        this.getBreathingConfig(
+          layer
+        );
 
       if (
-        !layer.state
+        !config.enabled
       ) {
         continue;
       }
 
+      const cycle =
+        Math.max(
+          0.5,
+          config.cycle
+        );
 
-      layer.runtime.visible =
-        layer.state === state;
+      const phase =
+        config.phase *
+        Math.PI *
+        2;
+
+      const breath =
+        -Math.cos(
+          (
+            elapsed /
+            cycle
+          ) *
+            Math.PI *
+            2 +
+          phase
+        );
+
+      const secondary =
+        Math.sin(
+          (
+            elapsed /
+            (
+              cycle *
+              0.53
+            )
+          ) *
+            Math.PI *
+            2 +
+          phase *
+            0.5
+        ) *
+        0.12;
+
+      const wave =
+        breath +
+        secondary;
+
+      const baseY =
+        layer.runtime.y ??
+        layer.y;
+
+      const baseScale =
+        layer.runtime.scale ??
+        layer.scale;
+
+      const baseRotation =
+        layer.runtime.rotation ??
+        layer.rotation;
+
+      layer.runtime.y =
+        baseY +
+        config.y *
+        wave;
+
+      layer.runtime.scale =
+        Math.max(
+          0.001,
+
+          baseScale *
+          (
+            1 +
+            config.scale *
+            wave
+          )
+        );
+
+      layer.runtime.rotation =
+        baseRotation +
+        config.rotation *
+        wave;
     }
   }
 
@@ -1318,12 +1448,10 @@ export class Animator {
      ======================================================= */
 
   resetOrganic() {
-
     for (
       const layer
       of this.engine.layers
     ) {
-
       layer._organicRuntime =
         null;
     }
@@ -1334,10 +1462,9 @@ export class Animator {
     layer,
     now
   ) {
-
     const config =
-      layer.organic;
-
+      layer.organic ||
+      {};
 
     const min =
       Math.max(
@@ -1348,7 +1475,6 @@ export class Animator {
         )
       );
 
-
     const max =
       Math.max(
         min,
@@ -1358,9 +1484,7 @@ export class Animator {
         )
       );
 
-
     layer._organicRuntime = {
-
       active:
         false,
 
@@ -1376,6 +1500,19 @@ export class Animator {
       double:
         false,
 
+      actualAmount:
+        Number(
+          config.amount ||
+          0
+        ),
+
+      actualDuration:
+        Number(
+          config.duration ||
+          0.2
+        ) *
+        1000,
+
       next:
         now +
         randomRange(
@@ -1387,14 +1524,74 @@ export class Animator {
   }
 
 
+  startOrganic(
+    layer,
+    now
+  ) {
+    const config =
+      layer.organic ||
+      {};
+
+    const runtime =
+      layer._organicRuntime;
+
+    runtime.active =
+      true;
+
+    runtime.start =
+      now;
+
+    runtime.direction =
+      Math.random() <
+      0.5
+        ? -1
+        : 1;
+
+    runtime.double =
+      Math.random() <
+      clamp(
+        Number(
+          config.doubleChance ??
+          0
+        ),
+        0,
+        1
+      );
+
+    runtime.actualAmount =
+      Number(
+        config.amount ||
+        0
+      ) *
+      randomRange(
+        0.78,
+        1.12
+      );
+
+    runtime.actualDuration =
+      Math.max(
+        80,
+
+        Number(
+          config.duration ||
+          0.2
+        ) *
+          1000 *
+          randomRange(
+            0.86,
+            1.16
+          )
+      );
+  }
+
+
   scheduleNextOrganic(
     layer,
     now
   ) {
-
     const config =
-      layer.organic;
-
+      layer.organic ||
+      {};
 
     const min =
       Math.max(
@@ -1405,7 +1602,6 @@ export class Animator {
         )
       );
 
-
     const max =
       Math.max(
         min,
@@ -1415,10 +1611,8 @@ export class Animator {
         )
       );
 
-
     const runtime =
       layer._organicRuntime;
-
 
     runtime.next =
       now +
@@ -1428,22 +1622,18 @@ export class Animator {
       ) *
       1000;
 
-
     runtime.active =
       false;
   }
 
 
   applyOrganic(now) {
-
     for (
       const layer
       of this.engine.layers
     ) {
-
       const config =
         layer.organic;
-
 
       if (
         !config?.enabled
@@ -1451,57 +1641,28 @@ export class Animator {
         continue;
       }
 
-
       if (
         !layer._organicRuntime
       ) {
-
         this.initializeOrganic(
           layer,
           now
         );
       }
 
-
       const organic =
         layer._organicRuntime;
 
-
-      /*
-       * Esperando el próximo
-       * movimiento.
-       */
-
       if (
         !organic.active &&
-        now >= organic.next
+        now >=
+          organic.next
       ) {
-
-        organic.active =
-          true;
-
-        organic.start =
-          now;
-
-        organic.direction =
-          Math.random() <
-          0.5
-            ? -1
-            : 1;
-
-
-        organic.double =
-          Math.random() <
-          clamp(
-            Number(
-              config.doubleChance ??
-              0
-            ),
-            0,
-            1
-          );
+        this.startOrganic(
+          layer,
+          now
+        );
       }
-
 
       if (
         !organic.active
@@ -1509,36 +1670,17 @@ export class Animator {
         continue;
       }
 
-
-      const duration =
-        Math.max(
-          0.08,
-          Number(
-            config.duration ||
-            0.2
-          )
-        ) *
-        1000;
-
-
-      const elapsed =
-        now -
-        organic.start;
-
-
       const progress =
-        elapsed /
-        duration;
-
-
-      /*
-       * Terminó el tic.
-       */
+        (
+          now -
+          organic.start
+        ) /
+        organic.actualDuration;
 
       if (
-        progress >= 1
+        progress >=
+        1
       ) {
-
         this.scheduleNextOrganic(
           layer,
           now
@@ -1547,69 +1689,68 @@ export class Animator {
         continue;
       }
 
-
-      const amount =
-        Number(
-          config.amount ||
-          0
-        );
-
-
-      let wave;
-
+      let pulse;
 
       if (
         organic.double
       ) {
+        if (
+          progress <
+          0.46
+        ) {
+          pulse =
+            Math.sin(
+              (
+                progress /
+                0.46
+              ) *
+              Math.PI
+            );
 
-        /*
-         * Dos pequeños impulsos.
-         */
+        } else if (
+          progress <
+          0.58
+        ) {
+          pulse =
+            0;
 
-        wave =
-          Math.sin(
-            progress *
-            Math.PI *
-            2
-          );
+        } else {
+          pulse =
+            0.72 *
+            Math.sin(
+              (
+                (
+                  progress -
+                  0.58
+                ) /
+                0.42
+              ) *
+              Math.PI
+            );
+        }
 
       } else {
-
-        /*
-         * Un movimiento suave
-         * que vuelve al origen.
-         */
-
-        wave =
+        pulse =
           Math.sin(
             progress *
             Math.PI
           );
       }
 
+      const offset =
+        organic.actualAmount *
+        organic.direction *
+        pulse;
 
       /*
-       * Suavizar entrada/salida
+       * Toma la rotación ya calculada
+       * por Keyframe + Respiración
+       * y suma el tic encima.
        */
-
-      const envelope =
-        Math.sin(
-          progress *
-          Math.PI
-        );
-
-
-      const offset =
-        amount *
-        organic.direction *
-        wave *
-        envelope;
-
 
       const baseRotation =
         layer.runtime.rotation ??
         layer.rotation;
-
 
       layer.runtime.rotation =
         baseRotation +
@@ -1623,17 +1764,12 @@ export class Animator {
      ======================================================= */
 
   getKeyframesForSelectedLayer() {
-
     const layer =
       this.engine.selected;
 
-
-    if (
-      !layer
-    ) {
+    if (!layer) {
       return [];
     }
-
 
     return this.getLayerKeyframes(
       layer.id
@@ -1642,7 +1778,6 @@ export class Animator {
 
 
   getStateKeyframes() {
-
     return (
       this.animation
         .stateKeyframes ||
@@ -1652,40 +1787,42 @@ export class Animator {
 
 
   /* =======================================================
-     RESET COMPLETO DE ANIMACIÓN
-     No elimina capas.
+     RESET
      ======================================================= */
 
   clearAnimation() {
-
     this.pause();
 
-
     this.engine.animation = {
+      duration:
+        10,
 
-      duration: 10,
+      loop:
+        true,
 
-      loop: true,
+      playOnRuntime:
+        true,
 
-      playOnRuntime: true,
+      layerKeyframes:
+        {},
 
-      layerKeyframes: {},
-
-      stateKeyframes: []
+      stateKeyframes:
+        []
     };
 
+    this.currentTime =
+      0;
 
-    this.currentTime = 0;
+    this.motionStart =
+      performance.now();
 
     this.manualStates.clear();
 
     this.resetOrganic();
 
-
     this.engine.resetRuntime();
 
     this.engine.draw();
-
 
     this.onTimeChange?.(
       0
