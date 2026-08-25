@@ -1,13 +1,24 @@
 <!doctype html>
 <html lang="es">
+
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>MK Mikatsune Engine v0.2.2</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
 
-  <link rel="stylesheet" href="./style.css">
+  <title>
+    MK Mikatsune Engine v0.2.5
+  </title>
+
+  <link
+    rel="stylesheet"
+    href="./style.css"
+  >
 </head>
+
 
 <body>
 
@@ -18,16 +29,32 @@
   <header class="topbar">
 
     <div class="topbar-brand">
-      <strong>MK Mikatsune Engine</strong>
-      <span>v0.2.2</span>
+
+      <strong>
+        MK Mikatsune Engine
+      </strong>
+
+      <span>
+        v0.2.5
+      </span>
+
     </div>
+
 
     <nav class="topbar-menu">
 
+
+      <!-- ARCHIVO -->
+
       <div class="topbar-group">
-        <button id="add" type="button">
+
+        <button
+          id="add"
+          type="button"
+        >
           ＋ Cargar PNG
         </button>
+
 
         <input
           id="file"
@@ -35,17 +62,27 @@
           accept="image/png,image/webp"
           hidden
         >
+
       </div>
 
 
       <div class="topbar-group">
-        <button id="save" type="button">
+
+        <button
+          id="save"
+          type="button"
+        >
           Guardar proyecto
         </button>
 
-        <button id="load" type="button">
+
+        <button
+          id="load"
+          type="button"
+        >
           Abrir proyecto
         </button>
+
 
         <input
           id="loadFile"
@@ -53,16 +90,53 @@
           accept="application/json"
           hidden
         >
+
+      </div>
+
+
+      <!-- MODO DE EDICIÓN -->
+
+      <div
+        class="topbar-group editor-mode-group"
+        aria-label="Modo de edición"
+      >
+
+        <button
+          id="modeDesign"
+          type="button"
+          class="accent active"
+          title="Editar composición sin crear animaciones"
+        >
+          ◇ Diseño
+        </button>
+
+
+        <button
+          id="modeAnimation"
+          type="button"
+          title="Editar poses y animaciones"
+        >
+          ◆ Animación
+        </button>
+
       </div>
 
 
       <div class="topbar-spacer"></div>
 
 
+      <!-- RUNTIME -->
+
       <div class="topbar-group">
-        <button id="runtime" type="button" class="accent">
+
+        <button
+          id="runtime"
+          type="button"
+          class="accent"
+        >
           ◉ Runtime
         </button>
+
       </div>
 
     </nav>
@@ -71,42 +145,75 @@
 
 
   <!-- =====================================================
-       ÁREA PRINCIPAL
+       WORKSPACE
   ====================================================== -->
 
   <div class="workspace">
 
 
     <!-- =================================================
-         IZQUIERDA — CAPAS
+         CAPAS
     ================================================== -->
 
     <aside class="layers-panel">
 
+
       <div class="panel-header">
 
         <div>
-          <h2>Capas</h2>
-          <p>Organiza las piezas del personaje</p>
+
+          <h2>
+            Capas
+          </h2>
+
+          <p>
+            Estructura del personaje
+          </p>
+
         </div>
 
       </div>
 
+
+      <!-- SELECCIÓN -->
+
+      <div class="layer-global-actions">
+
+        <button
+          id="selectAllLayers"
+          type="button"
+          title="Seleccionar todas las capas"
+        >
+          ⛶ Seleccionar todo
+        </button>
+
+
+        <button
+          id="clearLayerSelection"
+          type="button"
+          title="Cancelar selección múltiple"
+        >
+          ✕ Soltar
+        </button>
+
+      </div>
+
+
+      <!-- VISIBILIDAD -->
 
       <div class="layer-global-actions">
 
         <button
           id="showAllLayers"
           type="button"
-          title="Mostrar todas las capas"
         >
           👁 Mostrar
         </button>
 
+
         <button
           id="hideAllLayers"
           type="button"
-          title="Ocultar todas las capas"
         >
           ◉ Ocultar
         </button>
@@ -114,12 +221,16 @@
       </div>
 
 
+      <!-- LISTA -->
+
       <div
         id="layers"
         class="layers-list"
       >
       </div>
 
+
+      <!-- ACCIONES -->
 
       <div class="layers-footer">
 
@@ -130,6 +241,7 @@
         >
           ✂ Separar capa
         </button>
+
 
         <button
           id="undoSplit"
@@ -145,12 +257,14 @@
 
 
     <!-- =================================================
-         CENTRO — LIENZO
+         LIENZO
     ================================================== -->
 
     <main class="canvas-area">
 
+
       <div class="canvas-toolbar">
+
 
         <div class="canvas-toolbar-left">
 
@@ -158,8 +272,18 @@
             Lienzo
           </span>
 
+
+          <span
+            id="editorModeLabel"
+            class="hint"
+          >
+            Modo Diseño
+          </span>
+
         </div>
 
+
+        <!-- ZOOM -->
 
         <div class="zoom-controls">
 
@@ -232,16 +356,24 @@
 
 
     <!-- =================================================
-         DERECHA — INSPECTOR
+         INSPECTOR
     ================================================== -->
 
     <aside class="inspector-panel">
 
+
       <div class="panel-header">
 
         <div>
-          <h2>Inspector</h2>
-          <p>Capa seleccionada</p>
+
+          <h2>
+            Inspector
+          </h2>
+
+          <p id="inspectorSubtitle">
+            Capa seleccionada
+          </p>
+
         </div>
 
       </div>
@@ -251,10 +383,13 @@
 
       <section class="inspector-section">
 
-        <h3>Identidad</h3>
+        <h3>
+          Identidad
+        </h3>
 
 
         <label>
+
           Nombre
 
           <input
@@ -262,35 +397,59 @@
             type="text"
             placeholder="Nombre de capa"
           >
+
         </label>
 
 
         <label>
+
           Rol
 
           <select id="role">
 
-            <option value="generic">Genérico</option>
+            <option value="generic">
+              Genérico
+            </option>
 
-            <option value="body">Cuerpo</option>
+            <option value="body">
+              Cuerpo
+            </option>
 
-            <option value="head">Cabeza</option>
+            <option value="head">
+              Cabeza
+            </option>
 
-            <option value="earL">Oreja izquierda</option>
+            <option value="earL">
+              Oreja izquierda
+            </option>
 
-            <option value="earR">Oreja derecha</option>
+            <option value="earR">
+              Oreja derecha
+            </option>
 
-            <option value="eyeL">Ojo izquierdo</option>
+            <option value="eyeL">
+              Ojo izquierdo
+            </option>
 
-            <option value="eyeR">Ojo derecho</option>
+            <option value="eyeR">
+              Ojo derecho
+            </option>
 
-            <option value="mouth">Boca</option>
+            <option value="mouth">
+              Boca
+            </option>
 
-            <option value="paw">Pata</option>
+            <option value="paw">
+              Pata
+            </option>
 
-            <option value="tail">Cola</option>
+            <option value="tail">
+              Cola
+            </option>
 
-            <option value="crystal">Cristal</option>
+            <option value="crystal">
+              Cristal
+            </option>
 
           </select>
 
@@ -305,21 +464,26 @@
             checked
           >
 
-          <span>Mostrar capa</span>
+          <span>
+            Mostrar capa
+          </span>
 
         </label>
 
       </section>
 
 
-      <!-- GRUPO / ESTADO -->
+      <!-- ESTADOS -->
 
       <section class="inspector-section">
 
-        <h3>Grupo y estado</h3>
+        <h3>
+          Variante visual
+        </h3>
 
 
         <label>
+
           Grupo
 
           <input
@@ -327,10 +491,12 @@
             type="text"
             placeholder="Ej: Ojos"
           >
+
         </label>
 
 
         <label>
+
           Estado
 
           <input
@@ -338,6 +504,7 @@
             type="text"
             placeholder="Ej: Abierto"
           >
+
         </label>
 
 
@@ -350,8 +517,8 @@
 
 
         <p class="hint">
-          Ejemplo: Grupo “Ojos” con estados
-          “Abierto” y “Cerrado”.
+          Ejemplo: Ojos / Abierto y
+          Ojos / Cerrado.
         </p>
 
       </section>
@@ -361,26 +528,41 @@
 
       <section class="inspector-section">
 
-        <h3>Transformación</h3>
+        <h3>
+          Transformación
+        </h3>
 
 
         <div class="input-grid">
 
           <label>
+
             X
-            <input id="x" type="number">
+
+            <input
+              id="x"
+              type="number"
+            >
+
           </label>
 
 
           <label>
+
             Y
-            <input id="y" type="number">
+
+            <input
+              id="y"
+              type="number"
+            >
+
           </label>
 
         </div>
 
 
         <label>
+
           Escala
 
           <input
@@ -388,10 +570,12 @@
             type="number"
             step="0.01"
           >
+
         </label>
 
 
         <label>
+
           Rotación
 
           <input
@@ -399,6 +583,7 @@
             type="number"
             step="0.1"
           >
+
         </label>
 
       </section>
@@ -408,20 +593,34 @@
 
       <section class="inspector-section">
 
-        <h3>Pivote</h3>
+        <h3>
+          Pivote
+        </h3>
 
 
         <div class="input-grid">
 
           <label>
+
             Pivot X
-            <input id="pivotX" type="number">
+
+            <input
+              id="pivotX"
+              type="number"
+            >
+
           </label>
 
 
           <label>
+
             Pivot Y
-            <input id="pivotY" type="number">
+
+            <input
+              id="pivotY"
+              type="number"
+            >
+
           </label>
 
         </div>
@@ -440,16 +639,22 @@
 
 
   <!-- =====================================================
-       TIMELINE
+       TIMELINE / ANIMACIÓN
   ====================================================== -->
 
   <section class="timeline-panel">
 
+
     <div class="timeline-header">
+
+
+      <!-- TÍTULO -->
 
       <div class="timeline-title">
 
-        <strong>Animación</strong>
+        <strong>
+          Animación
+        </strong>
 
         <span>
           Timeline / Keyframes
@@ -457,6 +662,8 @@
 
       </div>
 
+
+      <!-- PLAYER -->
 
       <div class="timeline-player">
 
@@ -488,9 +695,12 @@
       </div>
 
 
+      <!-- OPCIONES -->
+
       <div class="timeline-options">
 
         <label>
+
           Duración
 
           <input
@@ -503,6 +713,7 @@
           >
 
           s
+
         </label>
 
 
@@ -514,7 +725,9 @@
             checked
           >
 
-          <span>Loop</span>
+          <span>
+            Loop
+          </span>
 
         </label>
 
@@ -527,7 +740,9 @@
             checked
           >
 
-          <span>Runtime</span>
+          <span>
+            Runtime
+          </span>
 
         </label>
 
@@ -536,12 +751,19 @@
     </div>
 
 
+    <!-- =================================================
+         CUERPO TIMELINE
+    ================================================== -->
+
     <div class="timeline-body">
+
+
+      <!-- NOMBRES -->
 
       <div class="timeline-track-names">
 
         <div class="timeline-track-label">
-          Capa
+          Transformación
         </div>
 
         <div class="timeline-track-label">
@@ -550,6 +772,8 @@
 
       </div>
 
+
+      <!-- PISTAS -->
 
       <div class="timeline-editor">
 
@@ -578,12 +802,15 @@
       </div>
 
 
+      <!-- CREAR -->
+
       <div class="timeline-actions">
 
         <button
           id="addKeyframe"
           type="button"
           class="accent"
+          title="Guardar pose en el tiempo actual"
         >
           ◆ Keyframe
         </button>
@@ -592,6 +819,7 @@
         <button
           id="addStateKeyframe"
           type="button"
+          title="Guardar cambio de estado"
         >
           ◇ Estado
         </button>
@@ -600,8 +828,83 @@
         <button
           id="deleteKeyframe"
           type="button"
+          title="Eliminar únicamente el keyframe cercano"
         >
-          Eliminar
+          Eliminar key
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <!-- =================================================
+         GESTIÓN DE ANIMACIONES
+    ================================================== -->
+
+    <div
+      class="animation-management"
+      id="animationManagement"
+    >
+
+      <div class="animation-management-info">
+
+        <strong>
+          Gestión
+        </strong>
+
+        <span id="selectedAnimationLabel">
+          Ninguna animación seleccionada
+        </span>
+
+      </div>
+
+
+      <div class="animation-management-actions">
+
+
+        <!-- BORRADO PEQUEÑO -->
+
+        <button
+          id="deleteSelectedAnimation"
+          type="button"
+          title="Eliminar únicamente la animación seleccionada"
+        >
+          ✕ Animación seleccionada
+        </button>
+
+
+        <!-- BORRAR CAPA -->
+
+        <button
+          id="deleteLayerAnimation"
+          type="button"
+          title="Eliminar todas las animaciones de la capa seleccionada"
+        >
+          ✕ Animaciones de esta capa
+        </button>
+
+
+        <!-- DESACTIVAR PROCEDURAL -->
+
+        <button
+          id="disableLayerMotion"
+          type="button"
+          title="Desactivar respiración y movimiento orgánico sin borrar su configuración"
+        >
+          ⏸ Desactivar movimiento
+        </button>
+
+
+        <!-- PELIGRO -->
+
+        <button
+          id="deleteAllAnimations"
+          type="button"
+          class="danger-action"
+          title="Eliminar todas las animaciones del proyecto"
+        >
+          ⚠ Borrar todas
         </button>
 
       </div>
@@ -609,12 +912,6 @@
     </div>
 
   </section>
-
-
-  <!-- =====================================================
-       PROCESOS
-       Estas herramientas NO viven en la interfaz principal.
-  ====================================================== -->
 
 
   <!-- =====================================================
@@ -670,8 +967,8 @@
 
           <button
             id="toolBrush"
-            class="tool active"
             type="button"
+            class="tool active"
           >
             🖌 Pincel +
           </button>
@@ -679,8 +976,8 @@
 
           <button
             id="toolErase"
-            class="tool"
             type="button"
+            class="tool"
           >
             ⌫ Borrar máscara
           </button>
@@ -688,8 +985,8 @@
 
           <button
             id="toolLasso"
-            class="tool"
             type="button"
+            class="tool"
           >
             〰 Lazo libre
           </button>
@@ -771,13 +1068,15 @@
         </section>
 
 
-        <!-- LIENZO -->
+        <!-- LIENZO SPLITTER -->
 
         <section class="splitter-stage-wrap">
 
           <div class="checkerboard splitter-stage-shell">
 
-            <canvas id="splitterCanvas"></canvas>
+            <canvas
+              id="splitterCanvas"
+            ></canvas>
 
           </div>
 
@@ -791,7 +1090,7 @@
         </section>
 
 
-        <!-- SALIDA -->
+        <!-- NUEVA CAPA -->
 
         <section class="splitter-output">
 
@@ -819,27 +1118,49 @@
 
             <select id="splitRole">
 
-              <option value="generic">Genérico</option>
+              <option value="generic">
+                Genérico
+              </option>
 
-              <option value="body">Cuerpo</option>
+              <option value="body">
+                Cuerpo
+              </option>
 
-              <option value="head">Cabeza</option>
+              <option value="head">
+                Cabeza
+              </option>
 
-              <option value="earL">Oreja izquierda</option>
+              <option value="earL">
+                Oreja izquierda
+              </option>
 
-              <option value="earR">Oreja derecha</option>
+              <option value="earR">
+                Oreja derecha
+              </option>
 
-              <option value="eyeL">Ojo izquierdo</option>
+              <option value="eyeL">
+                Ojo izquierdo
+              </option>
 
-              <option value="eyeR">Ojo derecho</option>
+              <option value="eyeR">
+                Ojo derecho
+              </option>
 
-              <option value="mouth">Boca</option>
+              <option value="mouth">
+                Boca
+              </option>
 
-              <option value="paw">Pata</option>
+              <option value="paw">
+                Pata
+              </option>
 
-              <option value="tail">Cola</option>
+              <option value="tail">
+                Cola
+              </option>
 
-              <option value="crystal">Cristal</option>
+              <option value="crystal">
+                Cristal
+              </option>
 
             </select>
 
@@ -932,8 +1253,7 @@
 
 
   <!-- =====================================================
-       CONFIGURACIÓN ORGÁNICA
-       Separada del inspector principal.
+       MOVIMIENTO ORGÁNICO
   ====================================================== -->
 
   <div
@@ -953,7 +1273,7 @@
           </h2>
 
           <p>
-            Intervalos y micro movimientos para Idle.
+            Intervalos y micro movimientos.
           </p>
 
         </div>
@@ -976,6 +1296,7 @@
 
 
       <label>
+
         Intervalo mínimo
 
         <input
@@ -985,10 +1306,12 @@
           step="0.1"
           value="2"
         >
+
       </label>
 
 
       <label>
+
         Intervalo máximo
 
         <input
@@ -998,10 +1321,12 @@
           step="0.1"
           value="3"
         >
+
       </label>
 
 
       <label>
+
         Movimiento
 
         <input
@@ -1011,10 +1336,12 @@
           step="0.1"
           value="3"
         >
+
       </label>
 
 
       <label>
+
         Duración del tic
 
         <input
@@ -1024,10 +1351,12 @@
           step="0.01"
           value="0.18"
         >
+
       </label>
 
 
       <label>
+
         Probabilidad doble tic
 
         <input
@@ -1037,6 +1366,7 @@
           max="100"
           value="20"
         >
+
       </label>
 
     </div>
@@ -1045,24 +1375,35 @@
 
 
   <!-- =====================================================
-       COMPATIBILIDAD TEMPORAL
+       COMPATIBILIDAD
   ====================================================== -->
 
-  <button id="idle" hidden>
+  <button
+    id="idle"
+    hidden
+  >
     Idle
   </button>
 
-  <button id="blink" hidden>
+
+  <button
+    id="blink"
+    hidden
+  >
     Parpadeo
   </button>
 
-  <button id="reset" hidden>
+
+  <button
+    id="reset"
+    hidden
+  >
     Reset
   </button>
 
 
   <!-- =====================================================
-       SCRIPT PRINCIPAL
+       APP
   ====================================================== -->
 
   <script
@@ -1071,4 +1412,5 @@
   ></script>
 
 </body>
+
 </html>
