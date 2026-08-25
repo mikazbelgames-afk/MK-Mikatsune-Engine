@@ -33,6 +33,223 @@ export function loadImage(src) {
 
 
 /* =========================================================
+   UTILIDADES
+   ========================================================= */
+
+function clonePlain(value) {
+  if (
+    value == null
+  ) {
+    return null;
+  }
+
+  return JSON.parse(
+    JSON.stringify(value)
+  );
+}
+
+
+/* =========================================================
+   ROOT PRINCIPAL
+   ========================================================= */
+
+/*
+ * Mikatsune Root
+ *
+ * Es el padre global del personaje.
+ *
+ * IMPORTANTE:
+ * Los valores iniciales forman una
+ * transformación identidad.
+ *
+ * x/y y pivotX/pivotY están en el
+ * centro del canvas, así que:
+ *
+ * escala 1
+ * rotación 0
+ *
+ * = visualmente no cambia nada.
+ */
+
+function defaultRoot(
+  canvasWidth = 1080,
+  canvasHeight = 1080
+) {
+  const centerX =
+    canvasWidth / 2;
+
+  const centerY =
+    canvasHeight / 2;
+
+  return {
+    id:
+      'mikatsune-root',
+
+    name:
+      'Mikatsune Root',
+
+    x:
+      centerX,
+
+    y:
+      centerY,
+
+    scale:
+      1,
+
+    rotation:
+      0,
+
+    opacity:
+      1,
+
+    pivotX:
+      centerX,
+
+    pivotY:
+      centerY,
+
+    visible:
+      true,
+
+    runtime:
+      {},
+
+    base:
+      {
+        x:
+          centerX,
+
+        y:
+          centerY,
+
+        scale:
+          1,
+
+        rotation:
+          0,
+
+        opacity:
+          1,
+
+        pivotX:
+          centerX,
+
+        pivotY:
+          centerY,
+
+        visible:
+          true
+      }
+  };
+}
+
+
+function normalizeRoot(
+  raw,
+  canvasWidth = 1080,
+  canvasHeight = 1080
+) {
+  const base =
+    defaultRoot(
+      canvasWidth,
+      canvasHeight
+    );
+
+  const root = {
+    id:
+      'mikatsune-root',
+
+    name:
+      raw?.name ||
+      'Mikatsune Root',
+
+    x:
+      Number(
+        raw?.x ??
+        base.x
+      ),
+
+    y:
+      Number(
+        raw?.y ??
+        base.y
+      ),
+
+    scale:
+      Number(
+        raw?.scale ??
+        base.scale
+      ),
+
+    rotation:
+      Number(
+        raw?.rotation ??
+        base.rotation
+      ),
+
+    opacity:
+      Number(
+        raw?.opacity ??
+        base.opacity
+      ),
+
+    pivotX:
+      Number(
+        raw?.pivotX ??
+        base.pivotX
+      ),
+
+    pivotY:
+      Number(
+        raw?.pivotY ??
+        base.pivotY
+      ),
+
+    visible:
+      raw?.visible ??
+      true,
+
+    runtime:
+      {},
+
+    base:
+      {}
+  };
+
+
+  root.base = {
+    x:
+      root.x,
+
+    y:
+      root.y,
+
+    scale:
+      root.scale,
+
+    rotation:
+      root.rotation,
+
+    opacity:
+      root.opacity,
+
+    pivotX:
+      root.pivotX,
+
+    pivotY:
+      root.pivotY,
+
+    visible:
+      root.visible
+  };
+
+
+  return root;
+}
+
+
+/* =========================================================
    MOVIMIENTO ORGÁNICO
    ========================================================= */
 
@@ -113,23 +330,6 @@ function normalizeOrganic(
 
 
 /* =========================================================
-   CLONADO SEGURO
-   ========================================================= */
-
-function clonePlain(value) {
-  if (
-    value == null
-  ) {
-    return null;
-  }
-
-  return JSON.parse(
-    JSON.stringify(value)
-  );
-}
-
-
-/* =========================================================
    ANIMACIÓN
    ========================================================= */
 
@@ -148,6 +348,14 @@ function emptyAnimation() {
       {},
 
     stateKeyframes:
+      [],
+
+    /*
+     * Reservado desde ahora
+     * para la futura animación
+     * del Mikatsune Root.
+     */
+    rootKeyframes:
       []
   };
 }
@@ -166,6 +374,15 @@ export class Engine {
     this.ctx =
       canvas.getContext(
         '2d'
+      );
+
+    /*
+     * Padre global permanente.
+     */
+    this.root =
+      defaultRoot(
+        canvas.width,
+        canvas.height
       );
 
     this.layers =
@@ -192,6 +409,89 @@ export class Engine {
       ) ||
       null
     );
+  }
+
+
+  /* -------------------------------------------------------
+     ROOT
+     ------------------------------------------------------- */
+
+  getRootPose() {
+    const runtime =
+      this.root.runtime ||
+      {};
+
+    return {
+      x:
+        runtime.x ??
+        this.root.x,
+
+      y:
+        runtime.y ??
+        this.root.y,
+
+      scale:
+        runtime.scale ??
+        this.root.scale,
+
+      rotation:
+        runtime.rotation ??
+        this.root.rotation,
+
+      opacity:
+        runtime.opacity ??
+        this.root.opacity,
+
+      pivotX:
+        runtime.pivotX ??
+        this.root.pivotX,
+
+      pivotY:
+        runtime.pivotY ??
+        this.root.pivotY,
+
+      visible:
+        runtime.visible ??
+        this.root.visible
+    };
+  }
+
+
+  snapshotRoot() {
+    return {
+      x:
+        this.root.x,
+
+      y:
+        this.root.y,
+
+      scale:
+        this.root.scale,
+
+      rotation:
+        this.root.rotation,
+
+      opacity:
+        this.root.opacity,
+
+      pivotX:
+        this.root.pivotX,
+
+      pivotY:
+        this.root.pivotY,
+
+      visible:
+        this.root.visible
+    };
+  }
+
+
+  resetRoot() {
+    this.root =
+      defaultRoot(
+        this.canvas.width,
+        this.canvas.height
+      );
   }
 
 
@@ -276,15 +576,6 @@ export class Engine {
           role
         ),
 
-      /*
-       * Respiración procedural.
-       *
-       * null = usar valores automáticos
-       * según el rol.
-       *
-       * Si se modifica o desactiva,
-       * se guarda dentro del proyecto.
-       */
       breathing:
         clonePlain(
           options.breathing
@@ -318,7 +609,7 @@ export class Engine {
 
 
   /* -------------------------------------------------------
-     SNAPSHOT
+     SNAPSHOT CAPA
      ------------------------------------------------------- */
 
   snapshot(layer) {
@@ -365,6 +656,14 @@ export class Engine {
      ------------------------------------------------------- */
 
   resetRuntime() {
+    /*
+     * Limpiar también el runtime
+     * del Root.
+     */
+    this.root.runtime =
+      {};
+
+
     for (
       const layer
       of this.layers
@@ -391,6 +690,71 @@ export class Engine {
       this.canvas.height
     );
 
+
+    /*
+     * =====================================================
+     * ROOT PRINCIPAL
+     * =====================================================
+     *
+     * Todo lo dibujado después hereda:
+     *
+     * posición
+     * escala
+     * rotación
+     * opacidad
+     *
+     * del Mikatsune Root.
+     */
+
+    const root =
+      this.getRootPose();
+
+
+    if (
+      root.visible ===
+      false
+    ) {
+      return;
+    }
+
+
+    ctx.save();
+
+
+    ctx.globalAlpha =
+      root.opacity;
+
+
+    ctx.translate(
+      root.x,
+      root.y
+    );
+
+
+    ctx.rotate(
+      root.rotation *
+      Math.PI /
+      180
+    );
+
+
+    ctx.scale(
+      root.scale,
+      root.scale
+    );
+
+
+    ctx.translate(
+      -root.pivotX,
+      -root.pivotY
+    );
+
+
+    /*
+     * =====================================================
+     * CAPAS HIJAS
+     * =====================================================
+     */
 
     for (
       const layer
@@ -488,7 +852,12 @@ export class Engine {
       ctx.save();
 
 
+      /*
+       * La opacidad de la capa se
+       * multiplica por la del Root.
+       */
       ctx.globalAlpha =
+        root.opacity *
         opacity;
 
 
@@ -528,6 +897,12 @@ export class Engine {
 
       ctx.restore();
     }
+
+
+    /*
+     * Cerrar transformación Root.
+     */
+    ctx.restore();
   }
 
 
@@ -538,7 +913,44 @@ export class Engine {
   serialize() {
     return {
       version:
-        '0.2.5',
+        '0.2.6',
+
+      /*
+       * Guardamos el Root como
+       * parte permanente del proyecto.
+       */
+      root: {
+        id:
+          'mikatsune-root',
+
+        name:
+          this.root.name ||
+          'Mikatsune Root',
+
+        x:
+          this.root.x,
+
+        y:
+          this.root.y,
+
+        scale:
+          this.root.scale,
+
+        rotation:
+          this.root.rotation,
+
+        opacity:
+          this.root.opacity,
+
+        pivotX:
+          this.root.pivotX,
+
+        pivotY:
+          this.root.pivotY,
+
+        visible:
+          this.root.visible
+      },
 
       layers:
         this.layers.map(
@@ -626,6 +1038,21 @@ export class Engine {
       [];
 
 
+    /*
+     * Proyectos antiguos no tienen
+     * root.
+     *
+     * En ese caso usamos identidad,
+     * así que siguen cargando igual.
+     */
+    this.root =
+      normalizeRoot(
+        data?.root,
+        this.canvas.width,
+        this.canvas.height
+      );
+
+
     for (
       const raw
       of data?.layers ||
@@ -702,6 +1129,17 @@ export class Engine {
       )
         ? this.animation
             .stateKeyframes
+        : [];
+
+
+    this.animation
+      .rootKeyframes =
+      Array.isArray(
+        this.animation
+          .rootKeyframes
+      )
+        ? this.animation
+            .rootKeyframes
         : [];
 
 
