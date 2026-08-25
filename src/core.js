@@ -2,8 +2,11 @@ export function fileToDataURL(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
+    reader.onload = () =>
+      resolve(reader.result);
+
+    reader.onerror = () =>
+      reject(reader.error);
 
     reader.readAsDataURL(file);
   });
@@ -14,7 +17,8 @@ export function loadImage(src) {
   return new Promise((resolve, reject) => {
     const image = new Image();
 
-    image.onload = () => resolve(image);
+    image.onload = () =>
+      resolve(image);
 
     image.onerror = () =>
       reject(
@@ -32,31 +36,41 @@ export function loadImage(src) {
    MOVIMIENTO ORGÁNICO
    ========================================================= */
 
-function defaultOrganic(role = 'generic') {
+function defaultOrganic(
+  role = 'generic'
+) {
   const isEar =
     role === 'earL' ||
     role === 'earR';
 
   return {
-    enabled: isEar,
+    enabled:
+      isEar,
 
-    minInterval: 2,
+    minInterval:
+      2,
 
-    maxInterval: 3.5,
+    maxInterval:
+      3.5,
 
     amount:
       isEar
         ? 2.2
         : 1.5,
 
-    duration: 0.28,
+    duration:
+      0.28,
 
-    doubleChance: 0.28
+    doubleChance:
+      0.28
   };
 }
 
 
-function normalizeOrganic(raw, role) {
+function normalizeOrganic(
+  raw,
+  role
+) {
   const base =
     defaultOrganic(role);
 
@@ -99,20 +113,42 @@ function normalizeOrganic(raw, role) {
 
 
 /* =========================================================
+   CLONADO SEGURO
+   ========================================================= */
+
+function clonePlain(value) {
+  if (
+    value == null
+  ) {
+    return null;
+  }
+
+  return JSON.parse(
+    JSON.stringify(value)
+  );
+}
+
+
+/* =========================================================
    ANIMACIÓN
    ========================================================= */
 
 function emptyAnimation() {
   return {
-    duration: 10,
+    duration:
+      10,
 
-    loop: true,
+    loop:
+      true,
 
-    playOnRuntime: true,
+    playOnRuntime:
+      true,
 
-    layerKeyframes: {},
+    layerKeyframes:
+      {},
 
-    stateKeyframes: []
+    stateKeyframes:
+      []
   };
 }
 
@@ -132,9 +168,11 @@ export class Engine {
         '2d'
       );
 
-    this.layers = [];
+    this.layers =
+      [];
 
-    this.selectedId = null;
+    this.selectedId =
+      null;
 
     this.animation =
       emptyAnimation();
@@ -220,14 +258,6 @@ export class Engine {
         options.pivotY ??
         0,
 
-      /*
-       * Volteo NO destructivo.
-       *
-       * No modifica el PNG.
-       * Cada capa mantiene sus
-       * propios valores.
-       */
-
       flipX:
         options.flipX ??
         false,
@@ -246,17 +276,38 @@ export class Engine {
           role
         ),
 
-      runtime: {},
+      /*
+       * Respiración procedural.
+       *
+       * null = usar valores automáticos
+       * según el rol.
+       *
+       * Si se modifica o desactiva,
+       * se guarda dentro del proyecto.
+       */
+      breathing:
+        clonePlain(
+          options.breathing
+        ),
 
-      _organicRuntime: null
+      runtime:
+        {},
+
+      _organicRuntime:
+        null
     };
 
 
     layer.base =
-      this.snapshot(layer);
+      this.snapshot(
+        layer
+      );
 
 
-    this.layers.push(layer);
+    this.layers.push(
+      layer
+    );
+
 
     this.selectedId =
       layer.id;
@@ -318,7 +369,8 @@ export class Engine {
       const layer
       of this.layers
     ) {
-      layer.runtime = {};
+      layer.runtime =
+        {};
     }
   }
 
@@ -344,7 +396,9 @@ export class Engine {
       const layer
       of this.layers
     ) {
-      if (!layer.image) {
+      if (
+        !layer.image
+      ) {
         continue;
       }
 
@@ -359,7 +413,9 @@ export class Engine {
         layer.visible;
 
 
-      if (!visible) {
+      if (
+        !visible
+      ) {
         continue;
       }
 
@@ -436,12 +492,6 @@ export class Engine {
         opacity;
 
 
-      /*
-       * El punto X/Y representa
-       * la posición mundial
-       * del pivote.
-       */
-
       ctx.translate(
         x,
         y
@@ -454,14 +504,6 @@ export class Engine {
         180
       );
 
-
-      /*
-       * El volteo se aplica
-       * únicamente durante
-       * el render.
-       *
-       * El PNG original NO cambia.
-       */
 
       ctx.scale(
         scaleX,
@@ -496,7 +538,7 @@ export class Engine {
   serialize() {
     return {
       version:
-        '0.2.3',
+        '0.2.5',
 
       layers:
         this.layers.map(
@@ -542,12 +584,6 @@ export class Engine {
             pivotY:
               layer.pivotY,
 
-            /*
-             * IMPORTANTE:
-             * cada duplicado guarda
-             * su propio volteo.
-             */
-
             flipX:
               Boolean(
                 layer.flipX
@@ -561,17 +597,21 @@ export class Engine {
             visible:
               layer.visible,
 
-            organic: {
-              ...layer.organic
-            }
+            organic:
+              clonePlain(
+                layer.organic
+              ),
+
+            breathing:
+              clonePlain(
+                layer.breathing
+              )
           })
         ),
 
       animation:
-        JSON.parse(
-          JSON.stringify(
-            this.animation
-          )
+        clonePlain(
+          this.animation
         )
     };
   }
@@ -582,7 +622,8 @@ export class Engine {
      ------------------------------------------------------- */
 
   async load(data) {
-    this.layers = [];
+    this.layers =
+      [];
 
 
     for (
@@ -590,7 +631,9 @@ export class Engine {
       of data?.layers ||
       []
     ) {
-      if (!raw?.src) {
+      if (
+        !raw?.src
+      ) {
         continue;
       }
 
@@ -605,11 +648,6 @@ export class Engine {
         this.addLayer({
           ...raw,
 
-          /*
-           * Compatibilidad con
-           * proyectos anteriores.
-           */
-
           flipX:
             raw.flipX ??
             false,
@@ -617,6 +655,11 @@ export class Engine {
           flipY:
             raw.flipY ??
             false,
+
+          breathing:
+            clonePlain(
+              raw.breathing
+            ),
 
           image
         });
@@ -644,13 +687,15 @@ export class Engine {
     };
 
 
-    this.animation.layerKeyframes =
+    this.animation
+      .layerKeyframes =
       this.animation
         .layerKeyframes ||
       {};
 
 
-    this.animation.stateKeyframes =
+    this.animation
+      .stateKeyframes =
       Array.isArray(
         this.animation
           .stateKeyframes
