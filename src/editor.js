@@ -51,47 +51,17 @@ let zoomPercent =
 let timelinePreviewActive =
   false;
 
-
-/*
- * design
- * animation
- */
-
 let editorMode =
   'design';
-
-
-/*
- * Selección múltiple.
- *
- * engine.selectedId continúa siendo
- * la capa activa principal.
- */
 
 const multiSelection =
   new Set();
 
-
-/*
- * Referencia exacta a algo
- * seleccionado en Timeline.
- */
-
 let selectedAnimationRef =
   null;
 
-
-/*
- * Manipulación del canvas.
- */
-
 let canvasInteraction =
   null;
-
-
-/*
- * Historial.
- */
 
 const undoStack =
   [];
@@ -228,10 +198,6 @@ function pushHistory() {
       )
     );
 
-    /*
-     * Data URLs pesan bastante.
-     * No queremos llenar memoria.
-     */
     if (
       undoStack.length >
       12
@@ -343,7 +309,6 @@ function setEditorMode(
   editorMode =
     mode;
 
-
   if (
     editorMode ===
     'design'
@@ -362,7 +327,6 @@ function setEditorMode(
       false
     );
   }
-
 
   syncModeUI();
 
@@ -393,13 +357,11 @@ function syncModeUI() {
       !design
     );
 
-
   q('#editorModeLabel')
     .textContent =
     design
       ? 'Modo Diseño · no crea animación'
       : 'Modo Animación · edita keyframes';
-
 
   const subtitle =
     q('#inspectorSubtitle');
@@ -458,7 +420,6 @@ function getEffectivePose(
       'animation' ||
     timelinePreviewActive ||
     animator.playing;
-
 
   return {
     x:
@@ -605,7 +566,6 @@ function writePoseKeyframe(
       layer.id
     );
 
-
   let keyframe =
     list.find(
       item =>
@@ -617,7 +577,6 @@ function writePoseKeyframe(
         ) <
         0.015
     );
-
 
   if (!keyframe) {
     keyframe = {
@@ -631,7 +590,6 @@ function writePoseKeyframe(
       keyframe
     );
   }
-
 
   Object.assign(
     keyframe,
@@ -662,13 +620,11 @@ function writePoseKeyframe(
     }
   );
 
-
   list.sort(
     (a, b) =>
       a.time -
       b.time
   );
-
 
   return keyframe;
 }
@@ -836,7 +792,6 @@ function toggleMultiLayer(
     );
   }
 
-
   if (
     multiSelection.size
   ) {
@@ -847,7 +802,6 @@ function toggleMultiLayer(
     engine.selectedId =
       null;
   }
-
 
   renderLayers();
 
@@ -870,11 +824,9 @@ function renderLayers() {
   container.innerHTML =
     '';
 
-
   const ordered =
     [...engine.layers]
       .reverse();
-
 
   for (
     const layer
@@ -885,10 +837,8 @@ function renderLayers() {
         'div'
       );
 
-
     const classes =
       ['layer'];
-
 
     if (
       layer.id ===
@@ -898,7 +848,6 @@ function renderLayers() {
         'active'
       );
     }
-
 
     if (
       isMultiSelected(
@@ -910,10 +859,8 @@ function renderLayers() {
       );
     }
 
-
     row.className =
       classes.join(' ');
-
 
     const info =
       document.createElement(
@@ -925,7 +872,6 @@ function renderLayers() {
 
     info.style.flex =
       '1';
-
 
     const identity = [
       layer.role ||
@@ -950,7 +896,6 @@ function renderLayers() {
       .filter(Boolean)
       .join(' · ');
 
-
     info.innerHTML = `
       <strong>
         ${escapeHTML(
@@ -965,7 +910,6 @@ function renderLayers() {
         )}
       </small>
     `;
-
 
     const eye =
       document.createElement(
@@ -995,7 +939,6 @@ function renderLayers() {
         ? ''
         : 'opacity:.45'
     ].join(';');
-
 
     eye.addEventListener(
       'click',
@@ -1029,7 +972,6 @@ function renderLayers() {
       }
     );
 
-
     row.appendChild(
       info
     );
@@ -1037,7 +979,6 @@ function renderLayers() {
     row.appendChild(
       eye
     );
-
 
     row.addEventListener(
       'click',
@@ -1058,7 +999,6 @@ function renderLayers() {
         }
       }
     );
-
 
     container.appendChild(
       row
@@ -1189,6 +1129,83 @@ q('#hideAllLayers')
 
 
 /* =========================================================
+   BOTÓN MOVIMIENTO PROCEDURAL
+   ========================================================= */
+
+function layerMotionIsActive(
+  layer
+) {
+  if (!layer) {
+    return false;
+  }
+
+  const organicActive =
+    Boolean(
+      layer.organic
+        ?.enabled
+    );
+
+  const breathing =
+    animator.getBreathingConfig(
+      layer
+    );
+
+  const breathingActive =
+    breathing?.enabled !==
+    false;
+
+  return (
+    organicActive ||
+    breathingActive
+  );
+}
+
+
+function syncLayerMotionButton() {
+  const button =
+    q('#disableLayerMotion');
+
+  if (!button) {
+    return;
+  }
+
+  const layer =
+    engine.selected;
+
+  if (!layer) {
+    button.disabled =
+      true;
+
+    button.textContent =
+      '▶ Activar movimiento';
+
+    button.title =
+      'Selecciona una capa primero';
+
+    return;
+  }
+
+  button.disabled =
+    false;
+
+  const active =
+    layerMotionIsActive(
+      layer
+    );
+
+  button.textContent =
+    active
+      ? '⏸ Desactivar movimiento'
+      : '▶ Activar movimiento';
+
+  button.title =
+    active
+      ? 'Apagar respiración y tics sin borrar su configuración'
+      : 'Volver a activar respiración y tics conservando su configuración';
+}
+
+
+/* =========================================================
    INSPECTOR
    ========================================================= */
 
@@ -1208,7 +1225,6 @@ const inspectorTextIds = [
 function syncInspector() {
   const layer =
     engine.selected;
-
 
   if (!layer) {
     for (
@@ -1245,15 +1261,15 @@ function syncInspector() {
     q('#organicDouble').value =
       20;
 
+    syncLayerMotionButton();
+
     return;
   }
-
 
   const pose =
     getEffectivePose(
       layer
     );
-
 
   q('#name').value =
     layer.name ||
@@ -1274,7 +1290,6 @@ function syncInspector() {
   q('#visible').checked =
     layer.visible !==
     false;
-
 
   q('#x').value =
     Number(
@@ -1306,11 +1321,9 @@ function syncInspector() {
       pose.pivotY
     ).toFixed(2);
 
-
   const organic =
     layer.organic ||
     {};
-
 
   q('#organicEnabled')
     .checked =
@@ -1342,6 +1355,8 @@ function syncInspector() {
       ) *
       100
     );
+
+  syncLayerMotionButton();
 }
 
 
@@ -1358,12 +1373,10 @@ function updateDesignTransform(
     return;
   }
 
-
   const oldValue =
     Number(
       layer[property]
     );
-
 
   if (
     property === 'x'
@@ -1448,12 +1461,10 @@ function updateDesignTransform(
     );
   }
 
-
   layer.base =
     engine.snapshot(
       layer
     );
-
 
   timelinePreviewActive =
     false;
@@ -1477,28 +1488,23 @@ function updateAnimationTransform(
     return;
   }
 
-
   animator.pause();
 
   timelinePreviewActive =
     true;
-
 
   animator.evaluate(
     animator.currentTime,
     false
   );
 
-
   const pose =
     getEffectivePose(
       layer
     );
 
-
   pose[property] =
     newValue;
-
 
   writePoseKeyframe(
     layer,
@@ -1506,11 +1512,9 @@ function updateAnimationTransform(
     animator.currentTime
   );
 
-
   animator.seek(
     animator.currentTime
   );
-
 
   renderTimelineLists();
 
@@ -1534,14 +1538,12 @@ for (
   const input =
     q(`#${property}`);
 
-
   input.addEventListener(
     'focus',
     () => {
       pushHistory();
     }
   );
-
 
   input.addEventListener(
     'input',
@@ -1553,12 +1555,10 @@ for (
         return;
       }
 
-
       let value =
         Number(
           event.target.value
         );
-
 
       if (
         property ===
@@ -1570,7 +1570,6 @@ for (
             value
           );
       }
-
 
       if (
         editorMode ===
@@ -1596,8 +1595,6 @@ for (
 
 /* =========================================================
    PIVOTE
-   Siempre es configuración del rig.
-   No genera animación.
    ========================================================= */
 
 function changePivotKeepingVisual(
@@ -1611,7 +1608,6 @@ function changePivotKeepingVisual(
   const oldPivotY =
     layer.pivotY;
 
-
   const dx =
     newPivotX -
     oldPivotX;
@@ -1619,7 +1615,6 @@ function changePivotKeepingVisual(
   const dy =
     newPivotY -
     oldPivotY;
-
 
   const scaleX =
     layer.scale *
@@ -1637,7 +1632,6 @@ function changePivotKeepingVisual(
         : 1
     );
 
-
   const localDX =
     dx *
     scaleX;
@@ -1646,12 +1640,10 @@ function changePivotKeepingVisual(
     dy *
     scaleY;
 
-
   const angle =
     layer.rotation *
     Math.PI /
     180;
-
 
   const cos =
     Math.cos(
@@ -1662,7 +1654,6 @@ function changePivotKeepingVisual(
     Math.sin(
       angle
     );
-
 
   layer.x +=
     localDX *
@@ -1676,24 +1667,16 @@ function changePivotKeepingVisual(
     localDY *
     cos;
 
-
   layer.pivotX =
     newPivotX;
 
   layer.pivotY =
     newPivotY;
 
-
-  /*
-   * Ajustar también cada pose
-   * animada.
-   */
-
   const frames =
     getLayerFrames(
       layer.id
     );
-
 
   for (
     const frame
@@ -1705,13 +1688,11 @@ function changePivotKeepingVisual(
         layer.scale
       );
 
-
     const frameRotation =
       Number(
         frame.rotation ??
         layer.rotation
       );
-
 
     const sx =
       frameScale *
@@ -1729,7 +1710,6 @@ function changePivotKeepingVisual(
           : 1
       );
 
-
     const fdx =
       dx *
       sx;
@@ -1738,19 +1718,16 @@ function changePivotKeepingVisual(
       dy *
       sy;
 
-
     const a =
       frameRotation *
       Math.PI /
       180;
-
 
     const fc =
       Math.cos(a);
 
     const fs =
       Math.sin(a);
-
 
     if (
       frame.x !==
@@ -1766,7 +1743,6 @@ function changePivotKeepingVisual(
         fs;
     }
 
-
     if (
       frame.y !==
       undefined
@@ -1781,14 +1757,12 @@ function changePivotKeepingVisual(
         fc;
     }
 
-
     frame.pivotX =
       Number(
         frame.pivotX ??
         oldPivotX
       ) +
       dx;
-
 
     frame.pivotY =
       Number(
@@ -1798,12 +1772,10 @@ function changePivotKeepingVisual(
       dy;
   }
 
-
   layer.base =
     engine.snapshot(
       layer
     );
-
 
   engine.resetRuntime();
 
@@ -1833,7 +1805,6 @@ for (
       }
     );
 
-
   q(`#${property}`)
     .addEventListener(
       'input',
@@ -1845,12 +1816,10 @@ for (
           return;
         }
 
-
         const value =
           Number(
             event.target.value
           );
-
 
         changePivotKeepingVisual(
           layer,
@@ -1865,7 +1834,6 @@ for (
             ? value
             : layer.pivotY
         );
-
 
         syncInspector();
       }
@@ -1911,13 +1879,10 @@ q('#role')
         return;
       }
 
-
       pushHistory();
-
 
       layer.role =
         event.target.value;
-
 
       if (
         (
@@ -1949,7 +1914,6 @@ q('#role')
             0.28
         };
       }
-
 
       renderLayers();
 
@@ -2032,7 +1996,6 @@ q('#activateState')
       const layer =
         engine.selected;
 
-
       if (
         !layer?.group
           ?.trim() ||
@@ -2046,16 +2009,13 @@ q('#activateState')
         return;
       }
 
-
       pushHistory();
-
 
       const group =
         layer.group.trim();
 
       const state =
         layer.state.trim();
-
 
       for (
         const item
@@ -2080,13 +2040,11 @@ q('#activateState')
           item.visible;
       }
 
-
       animator.manualStates
         .set(
           group,
           state
         );
-
 
       renderLayers();
 
@@ -2109,10 +2067,8 @@ const layerActions =
     'section'
   );
 
-
 layerActions.className =
   'inspector-section';
-
 
 layerActions.innerHTML = `
   <h3>Capa</h3>
@@ -2155,10 +2111,8 @@ layerActions.innerHTML = `
   </p>
 `;
 
-
 const inspectorPanel =
   q('.inspector-panel');
-
 
 inspectorPanel.insertBefore(
   layerActions,
@@ -2181,13 +2135,11 @@ function cloneLayerAnimation(
       sourceLayer.id
     );
 
-
   if (
     !sourceFrames.length
   ) {
     return;
   }
-
 
   const cloned =
     sourceFrames.map(
@@ -2217,7 +2169,6 @@ function cloneLayerAnimation(
       })
     );
 
-
   replaceLayerFrames(
     targetLayer.id,
     cloned
@@ -2233,7 +2184,6 @@ function duplicateSelectedLayer() {
   const source =
     engine.selected;
 
-
   if (!source) {
     alert(
       'Selecciona una capa primero.'
@@ -2242,16 +2192,13 @@ function duplicateSelectedLayer() {
     return;
   }
 
-
   pushHistory();
-
 
   const offsetX =
     24;
 
   const offsetY =
     24;
-
 
   const duplicate =
     engine.addLayer({
@@ -2316,7 +2263,6 @@ function duplicateSelectedLayer() {
         )
     });
 
-
   cloneLayerAnimation(
     source,
     duplicate,
@@ -2324,12 +2270,10 @@ function duplicateSelectedLayer() {
     offsetY
   );
 
-
   duplicate.base =
     engine.snapshot(
       duplicate
     );
-
 
   animator.resetOrganic();
 
@@ -2449,18 +2393,15 @@ q('#flipLayerY')
 const organicPanel =
   q('#organicPanel');
 
-
 const processHeader =
   organicPanel.querySelector(
     '.process-header'
   );
 
-
 const organicClose =
   document.createElement(
     'button'
   );
-
 
 organicClose.type =
   'button';
@@ -2471,17 +2412,14 @@ organicClose.textContent =
 organicClose.style.width =
   'auto';
 
-
 processHeader.appendChild(
   organicClose
 );
-
 
 const organicOpen =
   document.createElement(
     'button'
   );
-
 
 organicOpen.id =
   'openOrganic';
@@ -2494,7 +2432,6 @@ organicOpen.textContent =
 
 organicOpen.style.margin =
   '8px 14px 4px';
-
 
 inspectorPanel.insertBefore(
   organicOpen,
@@ -2559,7 +2496,6 @@ function updateOrganicFromUI() {
     return;
   }
 
-
   let min =
     Math.max(
       0.1,
@@ -2570,7 +2506,6 @@ function updateOrganicFromUI() {
       2
     );
 
-
   let max =
     Math.max(
       0.1,
@@ -2580,7 +2515,6 @@ function updateOrganicFromUI() {
       ) ||
       3.5
     );
-
 
   if (
     max <
@@ -2595,7 +2529,6 @@ function updateOrganicFromUI() {
       min
     ];
   }
-
 
   layer.organic = {
     enabled:
@@ -2643,9 +2576,10 @@ function updateOrganicFromUI() {
       )
   };
 
-
   layer._organicRuntime =
     null;
+
+  syncLayerMotionButton();
 
   queuePersist();
 }
@@ -2667,7 +2601,6 @@ for (
     'organicEnabled'
       ? 'change'
       : 'input';
-
 
   q(`#${id}`)
     .addEventListener(
@@ -2703,22 +2636,18 @@ q('#file')
         return;
       }
 
-
       try {
         pushHistory();
-
 
         const src =
           await fileToDataURL(
             file
           );
 
-
         const image =
           await loadImage(
             src
           );
-
 
         const layer =
           engine.addLayer({
@@ -2733,7 +2662,6 @@ q('#file')
             image
           });
 
-
         multiSelection.clear();
 
         engine.selectedId =
@@ -2741,7 +2669,6 @@ q('#file')
 
         timelinePreviewActive =
           false;
-
 
         renderLayers();
 
@@ -2752,7 +2679,6 @@ q('#file')
         engine.draw();
 
         drawSelectionOverlay();
-
 
         await persistProject({
           broadcast: true
@@ -2798,29 +2724,23 @@ q('#save')
           }
         );
 
-
       const url =
         URL.createObjectURL(
           blob
         );
-
 
       const anchor =
         document.createElement(
           'a'
         );
 
-
       anchor.href =
         url;
-
 
       anchor.download =
         'mikatsune-project-v0.2.5.json';
 
-
       anchor.click();
-
 
       setTimeout(
         () => {
@@ -2856,16 +2776,13 @@ q('#loadFile')
         return;
       }
 
-
       try {
         pushHistory();
-
 
         const data =
           JSON.parse(
             await file.text()
           );
-
 
         animator.pause();
 
@@ -2875,11 +2792,9 @@ q('#loadFile')
         animator.manualStates
           .clear();
 
-
         await engine.load(
           data
         );
-
 
         editorMode =
           'design';
@@ -2891,7 +2806,6 @@ q('#loadFile')
 
         timelinePreviewActive =
           false;
-
 
         updateSelectedAnimationLabel();
 
@@ -2908,7 +2822,6 @@ q('#loadFile')
         engine.draw();
 
         drawSelectionOverlay();
-
 
         await persistProject({
           broadcast: true
@@ -2960,36 +2873,29 @@ function applyZoom(
   const viewport =
     q('#stageViewport');
 
-
   const shell =
     q('#stageShell');
 
-
   const oldRect =
     shell.getBoundingClientRect();
-
 
   const oldWidth =
     oldRect.width ||
     engine.canvas.width;
 
-
   const oldHeight =
     oldRect.height ||
     engine.canvas.height;
-
 
   const centerX =
     viewport.scrollLeft +
     viewport.clientWidth /
     2;
 
-
   const centerY =
     viewport.scrollTop +
     viewport.clientHeight /
     2;
-
 
   const relX =
     oldWidth
@@ -2997,24 +2903,20 @@ function applyZoom(
         oldWidth
       : 0.5;
 
-
   const relY =
     oldHeight
       ? centerY /
         oldHeight
       : 0.5;
 
-
   zoomPercent =
     clampZoom(
       value
     );
 
-
   const factor =
     zoomPercent /
     100;
-
 
   shell.style.width =
     `${
@@ -3022,22 +2924,18 @@ function applyZoom(
       factor
     }px`;
 
-
   shell.style.height =
     `${
       engine.canvas.height *
       factor
     }px`;
 
-
   q('#zoomRange').value =
     zoomPercent;
-
 
   q('#zoomValue')
     .textContent =
     `${zoomPercent}%`;
-
 
   if (
     keepCenter
@@ -3048,11 +2946,9 @@ function applyZoom(
           engine.canvas.width *
           factor;
 
-
         const newHeight =
           engine.canvas.height *
           factor;
-
 
         viewport.scrollLeft =
           Math.max(
@@ -3063,7 +2959,6 @@ function applyZoom(
             viewport.clientWidth /
             2
           );
-
 
         viewport.scrollTop =
           Math.max(
@@ -3084,10 +2979,8 @@ function fitStage() {
   const viewport =
     q('#stageViewport');
 
-
   const padding =
     44;
-
 
   const availableWidth =
     Math.max(
@@ -3097,7 +2990,6 @@ function fitStage() {
       padding
     );
 
-
   const availableHeight =
     Math.max(
       100,
@@ -3105,7 +2997,6 @@ function fitStage() {
       viewport.clientHeight -
       padding
     );
-
 
   const fit =
     Math.min(
@@ -3116,7 +3007,6 @@ function fitStage() {
       engine.canvas.height
     ) *
     100;
-
 
   applyZoom(
     Math.min(
@@ -3217,7 +3107,6 @@ function pointerToCanvas(
   const rect =
     stage.getBoundingClientRect();
 
-
   return {
     x:
       (
@@ -3257,7 +3146,6 @@ function imagePointToWorld(
     ) ||
     1;
 
-
   const sx =
     scale *
     (
@@ -3265,7 +3153,6 @@ function imagePointToWorld(
         ? -1
         : 1
     );
-
 
   const sy =
     scale *
@@ -3275,14 +3162,12 @@ function imagePointToWorld(
         : 1
     );
 
-
   const localX =
     (
       imageX -
       pose.pivotX
     ) *
     sx;
-
 
   const localY =
     (
@@ -3291,24 +3176,20 @@ function imagePointToWorld(
     ) *
     sy;
 
-
   const angle =
     pose.rotation *
     Math.PI /
     180;
-
 
   const cos =
     Math.cos(
       angle
     );
 
-
   const sin =
     Math.sin(
       angle
     );
-
 
   return {
     x:
@@ -3341,29 +3222,24 @@ function worldPointToImage(
     worldX -
     pose.x;
 
-
   const dy =
     worldY -
     pose.y;
-
 
   const angle =
     pose.rotation *
     Math.PI /
     180;
 
-
   const cos =
     Math.cos(
       angle
     );
 
-
   const sin =
     Math.sin(
       angle
     );
-
 
   const rotatedX =
     cos *
@@ -3371,13 +3247,11 @@ function worldPointToImage(
     sin *
     dy;
 
-
   const rotatedY =
     -sin *
     dx +
     cos *
     dy;
-
 
   const scale =
     Math.max(
@@ -3391,7 +3265,6 @@ function worldPointToImage(
       )
     );
 
-
   const sx =
     scale *
     (
@@ -3400,7 +3273,6 @@ function worldPointToImage(
         : 1
     );
 
-
   const sy =
     scale *
     (
@@ -3408,7 +3280,6 @@ function worldPointToImage(
         ? -1
         : 1
     );
-
 
   return {
     x:
@@ -3439,19 +3310,16 @@ function pointInsideLayer(
     return false;
   }
 
-
   const pose =
     getEffectivePose(
       layer
     );
-
 
   if (
     !pose.visible
   ) {
     return false;
   }
-
 
   const local =
     worldPointToImage(
@@ -3461,16 +3329,13 @@ function pointInsideLayer(
       pose
     );
 
-
   const halfW =
     layer.image.width /
     2;
 
-
   const halfH =
     layer.image.height /
     2;
-
 
   return (
     local.x >=
@@ -3530,34 +3395,28 @@ function selectionGeometry(
     return null;
   }
 
-
   const pose =
     getEffectivePose(
       layer
     );
 
-
   const halfW =
     layer.image.width /
     2;
 
-
   const halfH =
     layer.image.height /
     2;
-
 
   const topY =
     layer.flipY
       ? halfH
       : -halfH;
 
-
   const outward =
     layer.flipY
       ? 1
       : -1;
-
 
   const rotateDistance =
     48 /
@@ -3567,7 +3426,6 @@ function selectionGeometry(
         pose.scale
       )
     );
-
 
   return {
     tl:
@@ -3649,14 +3507,12 @@ function multiBounds() {
   const layers =
     selectedMultiLayers();
 
-
   if (
     layers.length <
     2
   ) {
     return null;
   }
-
 
   let minX =
     Infinity;
@@ -3670,7 +3526,6 @@ function multiBounds() {
   let maxY =
     -Infinity;
 
-
   for (
     const layer
     of layers
@@ -3683,7 +3538,6 @@ function multiBounds() {
     if (!geometry) {
       continue;
     }
-
 
     for (
       const point
@@ -3720,7 +3574,6 @@ function multiBounds() {
     }
   }
 
-
   if (
     !Number.isFinite(
       minX
@@ -3728,7 +3581,6 @@ function multiBounds() {
   ) {
     return null;
   }
-
 
   const center = {
     x:
@@ -3745,7 +3597,6 @@ function multiBounds() {
       ) /
       2
   };
-
 
   return {
     minX,
@@ -3843,11 +3694,6 @@ function selectedHandleAtPoint(
     handleRadiusCanvas() *
     1.6;
 
-
-  /*
-   * Multiselección.
-   */
-
   if (
     multiSelection.size >
     1
@@ -3858,7 +3704,6 @@ function selectedHandleAtPoint(
     if (!bounds) {
       return null;
     }
-
 
     if (
       distance(
@@ -3875,7 +3720,6 @@ function selectedHandleAtPoint(
         bounds
       };
     }
-
 
     for (
       const name
@@ -3905,7 +3749,6 @@ function selectedHandleAtPoint(
       }
     }
 
-
     if (
       point.x >=
         bounds.minX &&
@@ -3924,18 +3767,11 @@ function selectedHandleAtPoint(
       };
     }
 
-
     return null;
   }
 
-
-  /*
-   * Selección simple.
-   */
-
   const layer =
     engine.selected;
-
 
   if (
     !layer ||
@@ -3944,17 +3780,14 @@ function selectedHandleAtPoint(
     return null;
   }
 
-
   const geometry =
     selectionGeometry(
       layer
     );
 
-
   if (!geometry) {
     return null;
   }
-
 
   if (
     distance(
@@ -3971,7 +3804,6 @@ function selectedHandleAtPoint(
     };
   }
 
-
   if (
     distance(
       point,
@@ -3987,7 +3819,6 @@ function selectedHandleAtPoint(
       geometry
     };
   }
-
 
   for (
     const name
@@ -4016,7 +3847,6 @@ function selectedHandleAtPoint(
       };
     }
   }
-
 
   return null;
 }
@@ -4059,10 +3889,8 @@ function drawSelectionOverlay() {
       '2d'
     );
 
-
   const radius =
     handleRadiusCanvas();
-
 
   const lineWidth =
     Math.max(
@@ -4076,11 +3904,6 @@ function drawSelectionOverlay() {
       )
     );
 
-
-  /*
-   * MULTI
-   */
-
   if (
     multiSelection.size >
     1
@@ -4091,7 +3914,6 @@ function drawSelectionOverlay() {
     if (!bounds) {
       return;
     }
-
 
     ctx.save();
 
@@ -4104,14 +3926,12 @@ function drawSelectionOverlay() {
     ctx.fillStyle =
       '#fff7fc';
 
-
     ctx.setLineDash(
       [
         8,
         5
       ]
     );
-
 
     ctx.strokeRect(
       bounds.minX,
@@ -4124,11 +3944,9 @@ function drawSelectionOverlay() {
       bounds.minY
     );
 
-
     ctx.setLineDash(
       []
     );
-
 
     ctx.beginPath();
 
@@ -4143,7 +3961,6 @@ function drawSelectionOverlay() {
     );
 
     ctx.stroke();
-
 
     for (
       const point
@@ -4160,7 +3977,6 @@ function drawSelectionOverlay() {
         radius
       );
     }
-
 
     ctx.beginPath();
 
@@ -4183,14 +3999,8 @@ function drawSelectionOverlay() {
     return;
   }
 
-
-  /*
-   * SIMPLE
-   */
-
   const layer =
     engine.selected;
-
 
   if (
     !layer ||
@@ -4199,12 +4009,10 @@ function drawSelectionOverlay() {
     return;
   }
 
-
   const pose =
     getEffectivePose(
       layer
     );
-
 
   if (
     !pose.visible
@@ -4212,24 +4020,19 @@ function drawSelectionOverlay() {
     return;
   }
 
-
   const geometry =
     selectionGeometry(
       layer
     );
 
-
   if (!geometry) {
     return;
   }
 
-
   ctx.save();
-
 
   ctx.lineWidth =
     lineWidth;
-
 
   ctx.strokeStyle =
     editorMode ===
@@ -4237,10 +4040,8 @@ function drawSelectionOverlay() {
       ? 'rgba(255,121,201,.95)'
       : 'rgba(209,124,255,.95)';
 
-
   ctx.fillStyle =
     '#fff7fc';
-
 
   ctx.beginPath();
 
@@ -4268,7 +4069,6 @@ function drawSelectionOverlay() {
 
   ctx.stroke();
 
-
   ctx.beginPath();
 
   ctx.moveTo(
@@ -4282,7 +4082,6 @@ function drawSelectionOverlay() {
   );
 
   ctx.stroke();
-
 
   for (
     const point
@@ -4300,7 +4099,6 @@ function drawSelectionOverlay() {
     );
   }
 
-
   ctx.beginPath();
 
   ctx.arc(
@@ -4317,14 +4115,8 @@ function drawSelectionOverlay() {
 
   ctx.stroke();
 
-
-  /*
-   * Pivote.
-   */
-
   ctx.strokeStyle =
     'rgba(255,111,207,.95)';
-
 
   ctx.beginPath();
 
@@ -4339,7 +4131,6 @@ function drawSelectionOverlay() {
   );
 
   ctx.stroke();
-
 
   ctx.beginPath();
 
@@ -4357,7 +4148,6 @@ function drawSelectionOverlay() {
     geometry.pivot.y
   );
 
-
   ctx.moveTo(
     geometry.pivot.x,
     geometry.pivot.y -
@@ -4373,7 +4163,6 @@ function drawSelectionOverlay() {
   );
 
   ctx.stroke();
-
 
   ctx.restore();
 }
@@ -4395,7 +4184,6 @@ function snapshotSelectionForTransform() {
               ]
             : []
         );
-
 
   return layers.map(
     layer => ({
@@ -4461,7 +4249,6 @@ function applyMultiMove(
       continue;
     }
 
-
     layer.x =
       item.layer.x +
       dx;
@@ -4470,13 +4257,11 @@ function applyMultiMove(
       item.layer.y +
       dy;
 
-
     const frames =
       clonePlain(
         item.frames
       ) ||
       [];
-
 
     for (
       const frame
@@ -4493,7 +4278,6 @@ function applyMultiMove(
           dx;
       }
 
-
       if (
         frame.y !==
         undefined
@@ -4506,12 +4290,10 @@ function applyMultiMove(
       }
     }
 
-
     replaceLayerFrames(
       layer.id,
       frames
     );
-
 
     layer.base =
       engine.snapshot(
@@ -4537,7 +4319,6 @@ function applyMultiScale(
       30
     );
 
-
   for (
     const item
     of snapshot
@@ -4553,7 +4334,6 @@ function applyMultiScale(
       continue;
     }
 
-
     layer.x =
       center.x +
       (
@@ -4561,7 +4341,6 @@ function applyMultiScale(
         center.x
       ) *
       factor;
-
 
     layer.y =
       center.y +
@@ -4571,18 +4350,15 @@ function applyMultiScale(
       ) *
       factor;
 
-
     layer.scale =
       item.layer.scale *
       factor;
-
 
     const frames =
       clonePlain(
         item.frames
       ) ||
       [];
-
 
     for (
       const frame
@@ -4603,7 +4379,6 @@ function applyMultiScale(
           factor;
       }
 
-
       if (
         frame.y !==
         undefined
@@ -4619,7 +4394,6 @@ function applyMultiScale(
           factor;
       }
 
-
       if (
         frame.scale !==
         undefined
@@ -4632,17 +4406,10 @@ function applyMultiScale(
       }
     }
 
-
     replaceLayerFrames(
       layer.id,
       frames
     );
-
-
-    /*
-     * Escalar amplitud vertical
-     * de respiración.
-     */
 
     if (
       item.layer.breathing
@@ -4659,7 +4426,6 @@ function applyMultiScale(
         ) *
         factor;
     }
-
 
     layer.base =
       engine.snapshot(
@@ -4687,7 +4453,6 @@ function rotatePointAround(
     y -
     center.y;
 
-
   const cos =
     Math.cos(
       radians
@@ -4697,7 +4462,6 @@ function rotatePointAround(
     Math.sin(
       radians
     );
-
 
   return {
     x:
@@ -4731,7 +4495,6 @@ function applyMultiRotation(
     Math.PI /
     180;
 
-
   for (
     const item
     of snapshot
@@ -4747,7 +4510,6 @@ function applyMultiRotation(
       continue;
     }
 
-
     const position =
       rotatePointAround(
         item.layer.x,
@@ -4756,25 +4518,21 @@ function applyMultiRotation(
         radians
       );
 
-
     layer.x =
       position.x;
 
     layer.y =
       position.y;
 
-
     layer.rotation =
       item.layer.rotation +
       degrees;
-
 
     const frames =
       clonePlain(
         item.frames
       ) ||
       [];
-
 
     for (
       const frame
@@ -4805,7 +4563,6 @@ function applyMultiRotation(
           point.y;
       }
 
-
       if (
         frame.rotation !==
         undefined
@@ -4818,12 +4575,10 @@ function applyMultiRotation(
       }
     }
 
-
     replaceLayerFrames(
       layer.id,
       frames
     );
-
 
     layer.base =
       engine.snapshot(
@@ -4847,20 +4602,12 @@ stage.addEventListener(
       return;
     }
 
-
     animator.pause();
-
 
     const point =
       pointerToCanvas(
         event
       );
-
-
-    /*
-     * MULTI siempre es una
-     * transformación de Diseño.
-     */
 
     if (
       multiSelection.size >
@@ -4877,12 +4624,10 @@ stage.addEventListener(
         return;
       }
 
-
       const handle =
         selectedHandleAtPoint(
           point
         );
-
 
       if (
         !handle ||
@@ -4894,17 +4639,13 @@ stage.addEventListener(
         return;
       }
 
-
       pushHistory();
-
 
       const bounds =
         handle.bounds;
 
-
       const snapshot =
         snapshotSelectionForTransform();
-
 
       const startDistance =
         Math.max(
@@ -4919,7 +4660,6 @@ stage.addEventListener(
           )
         );
 
-
       const startAngle =
         Math.atan2(
           point.y -
@@ -4928,7 +4668,6 @@ stage.addEventListener(
           point.x -
           bounds.center.x
         );
-
 
       canvasInteraction = {
         type:
@@ -4946,19 +4685,12 @@ stage.addEventListener(
         startAngle
       };
 
-
       stage.setPointerCapture(
         event.pointerId
       );
 
       return;
     }
-
-
-    /*
-     * Preparar pose si estamos
-     * animando.
-     */
 
     if (
       editorMode ===
@@ -4973,16 +4705,10 @@ stage.addEventListener(
       );
     }
 
-
     const handle =
       selectedHandleAtPoint(
         point
       );
-
-
-    /*
-     * HANDLE capa actual.
-     */
 
     if (handle) {
       const layer =
@@ -4992,20 +4718,16 @@ stage.addEventListener(
         return;
       }
 
-
       pushHistory();
-
 
       const startPose =
         getEffectivePose(
           layer
         );
 
-
       stage.setPointerCapture(
         event.pointerId
       );
-
 
       if (
         handle.type ===
@@ -5035,7 +4757,6 @@ stage.addEventListener(
 
         return;
       }
-
 
       if (
         handle.type ===
@@ -5070,16 +4791,10 @@ stage.addEventListener(
         return;
       }
 
-
       if (
         handle.type ===
         'pivot'
       ) {
-        /*
-         * El pivote siempre es
-         * configuración de rig.
-         */
-
         if (
           editorMode !==
           'design'
@@ -5090,7 +4805,6 @@ stage.addEventListener(
 
           return;
         }
-
 
         canvasInteraction = {
           type:
@@ -5114,17 +4828,11 @@ stage.addEventListener(
       }
     }
 
-
-    /*
-     * Buscar capa.
-     */
-
     const hit =
       layerAtPoint(
         point.x,
         point.y
       );
-
 
     if (!hit) {
       multiSelection.clear();
@@ -5145,7 +4853,6 @@ stage.addEventListener(
       return;
     }
 
-
     if (
       engine.selectedId !==
       hit.id
@@ -5155,24 +4862,19 @@ stage.addEventListener(
       );
     }
 
-
     const layer =
       engine.selected;
 
-
     pushHistory();
-
 
     const startPose =
       getEffectivePose(
         layer
       );
 
-
     stage.setPointerCapture(
       event.pointerId
     );
-
 
     canvasInteraction = {
       type:
@@ -5205,11 +4907,6 @@ stage.addEventListener(
         event
       );
 
-
-    /*
-     * CURSOR
-     */
-
     if (
       !canvasInteraction
     ) {
@@ -5217,7 +4914,6 @@ stage.addEventListener(
         selectedHandleAtPoint(
           point
         );
-
 
       if (handle) {
         if (
@@ -5246,7 +4942,6 @@ stage.addEventListener(
         return;
       }
 
-
       stage.style.cursor =
         layerAtPoint(
           point.x,
@@ -5258,11 +4953,6 @@ stage.addEventListener(
       return;
     }
 
-
-    /*
-     * MULTI MOVE
-     */
-
     if (
       canvasInteraction.type ===
       'multi-move'
@@ -5272,12 +4962,10 @@ stage.addEventListener(
         canvasInteraction
           .startPointer.x;
 
-
       const dy =
         point.y -
         canvasInteraction
           .startPointer.y;
-
 
       applyMultiMove(
         canvasInteraction
@@ -5285,7 +4973,6 @@ stage.addEventListener(
         dx,
         dy
       );
-
 
       engine.resetRuntime();
 
@@ -5298,11 +4985,6 @@ stage.addEventListener(
       return;
     }
 
-
-    /*
-     * MULTI SCALE
-     */
-
     if (
       canvasInteraction.type ===
       'multi-scale'
@@ -5310,7 +4992,6 @@ stage.addEventListener(
       const center =
         canvasInteraction
           .bounds.center;
-
 
       const currentDistance =
         Math.max(
@@ -5325,12 +5006,10 @@ stage.addEventListener(
           )
         );
 
-
       const factor =
         currentDistance /
         canvasInteraction
           .startDistance;
-
 
       applyMultiScale(
         canvasInteraction
@@ -5338,7 +5017,6 @@ stage.addEventListener(
         center,
         factor
       );
-
 
       engine.resetRuntime();
 
@@ -5351,11 +5029,6 @@ stage.addEventListener(
       return;
     }
 
-
-    /*
-     * MULTI ROTATE
-     */
-
     if (
       canvasInteraction.type ===
       'multi-rotate'
@@ -5363,7 +5036,6 @@ stage.addEventListener(
       const center =
         canvasInteraction
           .bounds.center;
-
 
       const angle =
         Math.atan2(
@@ -5374,7 +5046,6 @@ stage.addEventListener(
           center.x
         );
 
-
       let degrees =
         (
           angle -
@@ -5383,7 +5054,6 @@ stage.addEventListener(
         ) *
         180 /
         Math.PI;
-
 
       if (
         event.shiftKey
@@ -5396,14 +5066,12 @@ stage.addEventListener(
           15;
       }
 
-
       applyMultiRotation(
         canvasInteraction
           .snapshot,
         center,
         degrees
       );
-
 
       engine.resetRuntime();
 
@@ -5416,11 +5084,6 @@ stage.addEventListener(
       return;
     }
 
-
-    /*
-     * CAPA SIMPLE.
-     */
-
     const layer =
       engine.layers.find(
         item =>
@@ -5429,26 +5092,18 @@ stage.addEventListener(
             .layerId
       );
 
-
     if (!layer) {
       return;
     }
-
 
     const startPose =
       canvasInteraction
         .startPose;
 
-
     const pose =
       clonePlain(
         startPose
       );
-
-
-    /* -------------------------
-       MOVE
-       ------------------------- */
 
     if (
       canvasInteraction.type ===
@@ -5462,7 +5117,6 @@ stage.addEventListener(
             .startPointer.x
         );
 
-
       pose.y =
         startPose.y +
         (
@@ -5471,11 +5125,6 @@ stage.addEventListener(
             .startPointer.y
         );
     }
-
-
-    /* -------------------------
-       SCALE
-       ------------------------- */
 
     else if (
       canvasInteraction.type ===
@@ -5494,12 +5143,10 @@ stage.addEventListener(
           )
         );
 
-
       const ratio =
         currentDistance /
         canvasInteraction
           .startDistance;
-
 
       pose.scale =
         clamp(
@@ -5509,11 +5156,6 @@ stage.addEventListener(
           20
         );
     }
-
-
-    /* -------------------------
-       ROTATE
-       ------------------------- */
 
     else if (
       canvasInteraction.type ===
@@ -5528,7 +5170,6 @@ stage.addEventListener(
           startPose.x
         );
 
-
       let degrees =
         (
           angle -
@@ -5537,7 +5178,6 @@ stage.addEventListener(
         ) *
         180 /
         Math.PI;
-
 
       if (
         event.shiftKey
@@ -5550,16 +5190,10 @@ stage.addEventListener(
           15;
       }
 
-
       pose.rotation =
         startPose.rotation +
         degrees;
     }
-
-
-    /* -------------------------
-       PIVOT
-       ------------------------- */
 
     else if (
       canvasInteraction.type ===
@@ -5573,23 +5207,19 @@ stage.addEventListener(
           startPose
         );
 
-
       const newPivotX =
         local.x;
 
       const newPivotY =
         local.y;
 
-
       const dx =
         newPivotX -
         startPose.pivotX;
 
-
       const dy =
         newPivotY -
         startPose.pivotY;
-
 
       const sx =
         startPose.scale *
@@ -5599,7 +5229,6 @@ stage.addEventListener(
             : 1
         );
 
-
       const sy =
         startPose.scale *
         (
@@ -5607,7 +5236,6 @@ stage.addEventListener(
             ? -1
             : 1
         );
-
 
       const localDX =
         dx *
@@ -5617,12 +5245,10 @@ stage.addEventListener(
         dy *
         sy;
 
-
       const angle =
         startPose.rotation *
         Math.PI /
         180;
-
 
       const cos =
         Math.cos(
@@ -5634,14 +5260,12 @@ stage.addEventListener(
           angle
         );
 
-
       pose.x =
         startPose.x +
         localDX *
         cos -
         localDY *
         sin;
-
 
       pose.y =
         startPose.y +
@@ -5650,7 +5274,6 @@ stage.addEventListener(
         localDY *
         cos;
 
-
       pose.pivotX =
         newPivotX;
 
@@ -5658,33 +5281,10 @@ stage.addEventListener(
         newPivotY;
     }
 
-
-    /*
-     * DISEÑO
-     */
-
     if (
       editorMode ===
       'design'
     ) {
-      /*
-       * Empezar siempre desde
-       * la pose original del drag.
-       */
-
-      const oldX =
-        layer.x;
-
-      const oldY =
-        layer.y;
-
-      const oldScale =
-        layer.scale;
-
-      const oldRotation =
-        layer.rotation;
-
-
       if (
         canvasInteraction.type ===
         'move'
@@ -5697,29 +5297,12 @@ stage.addEventListener(
           pose.y -
           startPose.y;
 
-
         layer.x =
           pose.x;
 
         layer.y =
           pose.y;
 
-
-        const frames =
-          clonePlain(
-            canvasInteraction
-              .startFrames ||
-            cloneLayerFrames(
-              layer.id
-            )
-          ) ||
-          [];
-
-
-        /*
-         * La primera vez guardamos
-         * los frames originales.
-         */
         if (
           !canvasInteraction
             .startFrames
@@ -5731,14 +5314,12 @@ stage.addEventListener(
             );
         }
 
-
         const originalFrames =
           clonePlain(
             canvasInteraction
               .startFrames
           ) ||
           [];
-
 
         for (
           const frame
@@ -5767,7 +5348,6 @@ stage.addEventListener(
           }
         }
 
-
         replaceLayerFrames(
           layer.id,
           originalFrames
@@ -5788,7 +5368,6 @@ stage.addEventListener(
             );
         }
 
-
         const factor =
           pose.scale /
           Math.max(
@@ -5796,10 +5375,8 @@ stage.addEventListener(
             startPose.scale
           );
 
-
         layer.scale =
           pose.scale;
-
 
         const frames =
           clonePlain(
@@ -5807,7 +5384,6 @@ stage.addEventListener(
               .startFrames
           ) ||
           [];
-
 
         for (
           const frame
@@ -5824,7 +5400,6 @@ stage.addEventListener(
               factor;
           }
         }
-
 
         replaceLayerFrames(
           layer.id,
@@ -5846,15 +5421,12 @@ stage.addEventListener(
             );
         }
 
-
         const delta =
           pose.rotation -
           startPose.rotation;
 
-
         layer.rotation =
           pose.rotation;
-
 
         const frames =
           clonePlain(
@@ -5862,7 +5434,6 @@ stage.addEventListener(
               .startFrames
           ) ||
           [];
-
 
         for (
           const frame
@@ -5879,7 +5450,6 @@ stage.addEventListener(
               delta;
           }
         }
-
 
         replaceLayerFrames(
           layer.id,
@@ -5903,23 +5473,16 @@ stage.addEventListener(
           pose.pivotY;
       }
 
-
       layer.base =
         engine.snapshot(
           layer
         );
-
 
       timelinePreviewActive =
         false;
 
       engine.resetRuntime();
     }
-
-
-    /*
-     * ANIMACIÓN
-     */
 
     else {
       layer.runtime = {
@@ -5951,7 +5514,6 @@ stage.addEventListener(
       };
     }
 
-
     syncInspector();
 
     engine.draw();
@@ -5973,12 +5535,6 @@ function endCanvasInteraction() {
   ) {
     return;
   }
-
-
-  /*
-   * MULTI ya fue aplicado
-   * directamente en Diseño.
-   */
 
   if (
     canvasInteraction.type
@@ -6004,7 +5560,6 @@ function endCanvasInteraction() {
     return;
   }
 
-
   const layer =
     engine.layers.find(
       item =>
@@ -6012,7 +5567,6 @@ function endCanvasInteraction() {
         canvasInteraction
           .layerId
     );
-
 
   if (
     layer &&
@@ -6026,33 +5580,27 @@ function endCanvasInteraction() {
         layer
       );
 
-
     writePoseKeyframe(
       layer,
       pose,
       animator.currentTime
     );
 
-
     timelinePreviewActive =
       true;
-
 
     animator.seek(
       animator.currentTime
     );
 
-
     renderTimelineLists();
   }
-
 
   canvasInteraction =
     null;
 
   stage.style.cursor =
     'default';
-
 
   syncInspector();
 
@@ -6099,16 +5647,13 @@ function syncTimelineUI() {
   const duration =
     animationDuration();
 
-
   q('#timelineDuration')
     .value =
     duration;
 
-
   q('#timelineScrub')
     .max =
     duration;
-
 
   q('#timelineScrub')
     .value =
@@ -6118,12 +5663,10 @@ function syncTimelineUI() {
       duration
     );
 
-
   q('#timelineLoop')
     .checked =
     engine.animation.loop !==
     false;
-
 
   q('#timelineRuntime')
     .checked =
@@ -6131,11 +5674,9 @@ function syncTimelineUI() {
       .playOnRuntime !==
     false;
 
-
   q('#timelineTime')
     .textContent =
     `${animator.currentTime.toFixed(2)} s`;
-
 
   q('#timelinePlay')
     .textContent =
@@ -6153,7 +5694,6 @@ function updateSelectedAnimationLabel() {
   const label =
     q('#selectedAnimationLabel');
 
-
   if (
     !selectedAnimationRef
   ) {
@@ -6162,7 +5702,6 @@ function updateSelectedAnimationLabel() {
 
     return;
   }
-
 
   label.textContent =
     selectedAnimationRef
@@ -6182,10 +5721,8 @@ function keyChip(
       'button'
     );
 
-
   const duration =
     animationDuration();
-
 
   const left =
     clamp(
@@ -6198,21 +5735,17 @@ function keyChip(
       100
     );
 
-
   button.type =
     'button';
 
-
   button.title =
     `${label} · ${time.toFixed(2)} s`;
-
 
   button.textContent =
     kind ===
     'state'
       ? '◇'
       : '◆';
-
 
   button.style.cssText = [
     'position:absolute',
@@ -6225,7 +5758,6 @@ function keyChip(
     'font-size:10px',
     'z-index:2'
   ].join(';');
-
 
   if (
     selectedAnimationRef &&
@@ -6241,7 +5773,6 @@ function keyChip(
       '0 0 0 2px rgba(255,121,201,.2)';
   }
 
-
   button.addEventListener(
     'click',
     () => {
@@ -6250,20 +5781,16 @@ function keyChip(
         label
       };
 
-
       updateSelectedAnimationLabel();
-
 
       timelinePreviewActive =
         true;
-
 
       animator.pause();
 
       animator.seek(
         time
       );
-
 
       if (
         editorMode !==
@@ -6274,7 +5801,6 @@ function keyChip(
         );
       }
 
-
       syncTimelineUI();
 
       renderTimelineLists();
@@ -6282,7 +5808,6 @@ function keyChip(
       syncInspector();
     }
   );
-
 
   return button;
 }
@@ -6296,10 +5821,8 @@ function renderTimelineLists() {
   const layerBox =
     q('#layerKeyframeList');
 
-
   const stateBox =
     q('#stateKeyframeList');
-
 
   layerBox.innerHTML =
     '';
@@ -6307,10 +5830,8 @@ function renderTimelineLists() {
   stateBox.innerHTML =
     '';
 
-
   const selected =
     engine.selected;
-
 
   const layerFrames =
     selected
@@ -6318,7 +5839,6 @@ function renderTimelineLists() {
           selected.id
         )
       : [];
-
 
   if (
     !layerFrames.length
@@ -6375,7 +5895,6 @@ function renderTimelineLists() {
     }
   }
 
-
   const stateFrames =
     [
       ...(
@@ -6388,7 +5907,6 @@ function renderTimelineLists() {
         a.time -
         b.time
     );
-
 
   if (
     !stateFrames.length
@@ -6435,7 +5953,6 @@ function renderTimelineLists() {
     }
   }
 
-
   updateSelectedAnimationLabel();
 }
 
@@ -6450,11 +5967,9 @@ animator.onTimeChange =
       .value =
       time;
 
-
     q('#timelineTime')
       .textContent =
       `${time.toFixed(2)} s`;
-
 
     if (
       editorMode ===
@@ -6548,7 +6063,6 @@ q('#timelinePlay')
       timelinePreviewActive =
         true;
 
-
       if (
         animator.playing
       ) {
@@ -6567,7 +6081,6 @@ q('#timelinePlay')
         animator.play();
       }
 
-
       syncTimelineUI();
     }
   );
@@ -6579,11 +6092,9 @@ q('#timelineStop')
     () => {
       animator.stop();
 
-
       timelinePreviewActive =
         editorMode ===
         'animation';
-
 
       if (
         editorMode ===
@@ -6591,7 +6102,6 @@ q('#timelineStop')
       ) {
         engine.resetRuntime();
       }
-
 
       engine.draw();
 
@@ -6617,7 +6127,6 @@ q('#addKeyframe')
       const layer =
         engine.selected;
 
-
       if (!layer) {
         alert(
           'Selecciona una capa primero.'
@@ -6626,21 +6135,17 @@ q('#addKeyframe')
         return;
       }
 
-
       pushHistory();
-
 
       animator.evaluate(
         animator.currentTime,
         false
       );
 
-
       const pose =
         getEffectivePose(
           layer
         );
-
 
       const keyframe =
         writePoseKeyframe(
@@ -6648,7 +6153,6 @@ q('#addKeyframe')
           pose,
           animator.currentTime
         );
-
 
       selectedAnimationRef = {
         kind:
@@ -6664,16 +6168,13 @@ q('#addKeyframe')
           `${layer.name} · Transformación`
       };
 
-
       setEditorMode(
         'animation'
       );
 
-
       animator.seek(
         animator.currentTime
       );
-
 
       renderTimelineLists();
 
@@ -6693,7 +6194,6 @@ q('#addStateKeyframe')
       const layer =
         engine.selected;
 
-
       if (
         !layer?.group
           ?.trim() ||
@@ -6707,9 +6207,7 @@ q('#addStateKeyframe')
         return;
       }
 
-
       pushHistory();
-
 
       const keyframe =
         animator.addStateKeyframe(
@@ -6717,7 +6215,6 @@ q('#addStateKeyframe')
           layer.state.trim(),
           animator.currentTime
         );
-
 
       if (
         keyframe
@@ -6734,16 +6231,13 @@ q('#addStateKeyframe')
         };
       }
 
-
       setEditorMode(
         'animation'
       );
 
-
       animator.seek(
         animator.currentTime
       );
-
 
       renderTimelineLists();
 
@@ -6763,7 +6257,6 @@ function deleteAnimationReference(
     return false;
   }
 
-
   if (
     reference.kind ===
     'layer-keyframe'
@@ -6773,14 +6266,12 @@ function deleteAnimationReference(
         reference.layerId
       );
 
-
     const index =
       list.findIndex(
         item =>
           item.id ===
           reference.id
       );
-
 
     if (
       index >=
@@ -6794,7 +6285,6 @@ function deleteAnimationReference(
       return true;
     }
   }
-
 
   if (
     reference.kind ===
@@ -6805,14 +6295,12 @@ function deleteAnimationReference(
         .stateKeyframes ||
       [];
 
-
     const index =
       list.findIndex(
         item =>
           item.id ===
           reference.id
       );
-
 
     if (
       index >=
@@ -6826,7 +6314,6 @@ function deleteAnimationReference(
       return true;
     }
   }
-
 
   return false;
 }
@@ -6842,15 +6329,8 @@ q('#deleteKeyframe')
     () => {
       pushHistory();
 
-
       let removed =
         false;
-
-
-      /*
-       * Si hay uno seleccionado,
-       * borrar exactamente ese.
-       */
 
       if (
         selectedAnimationRef
@@ -6861,15 +6341,9 @@ q('#deleteKeyframe')
           );
       }
 
-
-      /*
-       * Si no, buscar cercano.
-       */
-
       if (!removed) {
         const layer =
           engine.selected;
-
 
         if (layer) {
           removed =
@@ -6881,7 +6355,6 @@ q('#deleteKeyframe')
               );
         }
 
-
         if (!removed) {
           removed =
             animator
@@ -6892,7 +6365,6 @@ q('#deleteKeyframe')
         }
       }
 
-
       if (!removed) {
         alert(
           'No hay ningún keyframe seleccionado o suficientemente cerca.'
@@ -6901,10 +6373,8 @@ q('#deleteKeyframe')
         return;
       }
 
-
       selectedAnimationRef =
         null;
-
 
       updateSelectedAnimationLabel();
 
@@ -6937,15 +6407,12 @@ q('#deleteSelectedAnimation')
         return;
       }
 
-
       pushHistory();
-
 
       const removed =
         deleteAnimationReference(
           selectedAnimationRef
         );
-
 
       if (!removed) {
         alert(
@@ -6960,15 +6427,12 @@ q('#deleteSelectedAnimation')
         return;
       }
 
-
       selectedAnimationRef =
         null;
-
 
       animator.seek(
         animator.currentTime
       );
-
 
       renderTimelineLists();
 
@@ -6988,7 +6452,6 @@ q('#deleteLayerAnimation')
       const layer =
         engine.selected;
 
-
       if (!layer) {
         alert(
           'Selecciona una capa primero.'
@@ -6997,12 +6460,10 @@ q('#deleteLayerAnimation')
         return;
       }
 
-
       const frames =
         getLayerFrames(
           layer.id
         );
-
 
       if (
         !frames.length
@@ -7014,20 +6475,16 @@ q('#deleteLayerAnimation')
         return;
       }
 
-
       const confirmed =
         confirm(
           `¿Eliminar todos los keyframes de "${layer.name}"?\n\nLas demás capas no se modificarán.`
         );
 
-
       if (!confirmed) {
         return;
       }
 
-
       pushHistory();
-
 
       engine.animation
         .layerKeyframes[
@@ -7035,14 +6492,11 @@ q('#deleteLayerAnimation')
         ] =
         [];
 
-
       selectedAnimationRef =
         null;
 
-
       timelinePreviewActive =
         false;
-
 
       engine.resetRuntime();
 
@@ -7058,7 +6512,10 @@ q('#deleteLayerAnimation')
 
 
 /* =========================================================
-   DESACTIVAR RESPIRACIÓN + TICS
+   ACTIVAR / DESACTIVAR RESPIRACIÓN + TICS
+
+   Ahora el mismo botón funciona
+   en ambas direcciones.
    ========================================================= */
 
 q('#disableLayerMotion')
@@ -7068,7 +6525,6 @@ q('#disableLayerMotion')
       const layer =
         engine.selected;
 
-
       if (!layer) {
         alert(
           'Selecciona una capa primero.'
@@ -7077,44 +6533,88 @@ q('#disableLayerMotion')
         return;
       }
 
-
       pushHistory();
-
 
       if (
         !layer.organic
       ) {
-        layer.organic =
-          {};
+        layer.organic = {
+          enabled:
+            false,
+
+          minInterval:
+            2,
+
+          maxInterval:
+            3.5,
+
+          amount:
+            2,
+
+          duration:
+            0.28,
+
+          doubleChance:
+            0.2
+        };
       }
-
-
-      layer.organic.enabled =
-        false;
-
 
       const breathing =
         animator.getBreathingConfig(
           layer
         );
 
+      const currentlyActive =
+        layerMotionIsActive(
+          layer
+        );
 
-      layer.breathing = {
-        ...breathing,
-        enabled:
-          false
-      };
+      if (
+        currentlyActive
+      ) {
+        /*
+         * APAGAR.
+         *
+         * Solo cambiamos enabled.
+         * Los parámetros quedan intactos.
+         */
 
+        layer.organic.enabled =
+          false;
+
+        layer.breathing = {
+          ...breathing,
+
+          enabled:
+            false
+        };
+
+      } else {
+        /*
+         * ENCENDER.
+         *
+         * Recuperamos los mismos
+         * valores guardados.
+         */
+
+        layer.organic.enabled =
+          true;
+
+        layer.breathing = {
+          ...breathing,
+
+          enabled:
+            true
+        };
+      }
 
       layer._organicRuntime =
         null;
-
 
       animator.resetOrganic();
 
       timelinePreviewActive =
         false;
-
 
       engine.resetRuntime();
 
@@ -7123,6 +6623,8 @@ q('#disableLayerMotion')
       drawSelectionOverlay();
 
       syncInspector();
+
+      syncLayerMotionButton();
 
       queuePersist();
     }
@@ -7142,38 +6644,30 @@ q('#deleteAllAnimations')
           '⚠ ¿BORRAR TODAS LAS ANIMACIONES DEL PROYECTO?\n\nSe eliminarán:\n• todos los keyframes\n• todos los cambios de estado\n• respiración\n• tics orgánicos\n\nLas capas y sus posiciones de Diseño permanecerán intactas.'
         );
 
-
       if (!confirmed) {
         return;
       }
-
 
       const second =
         confirm(
           'Última confirmación: ¿realmente quieres borrar TODA la animación?'
         );
 
-
       if (!second) {
         return;
       }
 
-
       pushHistory();
 
-
       animator.pause();
-
 
       engine.animation
         .layerKeyframes =
         {};
 
-
       engine.animation
         .stateKeyframes =
         [];
-
 
       for (
         const layer
@@ -7186,47 +6680,38 @@ q('#deleteAllAnimations')
             {};
         }
 
-
         layer.organic.enabled =
           false;
-
 
         const breathing =
           animator.getBreathingConfig(
             layer
           );
 
-
         layer.breathing = {
           ...breathing,
+
           enabled:
             false
         };
-
 
         layer._organicRuntime =
           null;
       }
 
-
       animator.manualStates
         .clear();
 
-
       animator.resetOrganic();
-
 
       selectedAnimationRef =
         null;
 
-
       timelinePreviewActive =
         false;
 
-
       editorMode =
         'design';
-
 
       engine.resetRuntime();
 
@@ -7256,13 +6741,11 @@ q('#runtime')
       const status =
         q('#runtimeStatus');
 
-
       const win =
         window.open(
           'about:blank',
           '_blank'
         );
-
 
       if (!win) {
         status.textContent =
@@ -7271,16 +6754,13 @@ q('#runtime')
         return;
       }
 
-
       status.textContent =
         'Preparando runtime…';
-
 
       const saved =
         await persistProject({
           broadcast: true
         });
-
 
       if (!saved) {
         win.close();
@@ -7291,13 +6771,11 @@ q('#runtime')
         return;
       }
 
-
       const runtimeURL =
         new URL(
           './runtime.html',
           location.href
         );
-
 
       runtimeURL
         .searchParams
@@ -7306,14 +6784,11 @@ q('#runtime')
           'current'
         );
 
-
       win.location.href =
         runtimeURL.href;
 
-
       status.textContent =
         'Runtime abierto.';
-
 
       setTimeout(
         () => {
@@ -7323,7 +6798,6 @@ q('#runtime')
         },
         400
       );
-
 
       setTimeout(
         () => {
@@ -7434,7 +6908,6 @@ function setSplitterTool(
   splitter.lassoPoints =
     [];
 
-
   q('#toolBrush')
     .classList
     .toggle(
@@ -7442,7 +6915,6 @@ function setSplitterTool(
       tool ===
       'brush'
     );
-
 
   q('#toolErase')
     .classList
@@ -7452,7 +6924,6 @@ function setSplitterTool(
       'erase'
     );
 
-
   q('#toolLasso')
     .classList
     .toggle(
@@ -7460,7 +6931,6 @@ function setSplitterTool(
       tool ===
       'lasso'
     );
-
 
   renderSplitter();
 }
@@ -7474,7 +6944,6 @@ function openSplitter() {
   const layer =
     engine.selected;
 
-
   if (
     !layer?.image
   ) {
@@ -7485,22 +6954,18 @@ function openSplitter() {
     return;
   }
 
-
   splitter.targetId =
     layer.id;
-
 
   const width =
     layer.image
       .naturalWidth ||
     layer.image.width;
 
-
   const height =
     layer.image
       .naturalHeight ||
     layer.image.height;
-
 
   for (
     const canvas
@@ -7517,7 +6982,6 @@ function openSplitter() {
       height;
   }
 
-
   splitter.sourceCtx
     .clearRect(
       0,
@@ -7525,7 +6989,6 @@ function openSplitter() {
       width,
       height
     );
-
 
   splitter.sourceCtx
     .drawImage(
@@ -7536,7 +6999,6 @@ function openSplitter() {
       height
     );
 
-
   splitter.maskCtx
     .clearRect(
       0,
@@ -7545,52 +7007,42 @@ function openSplitter() {
       height
     );
 
-
   q('#splitName').value =
     `${layer.name} · parte`;
-
 
   q('#splitRole').value =
     layer.role ||
     'generic';
 
-
   q('#splitGroup').value =
     layer.group ||
     '';
-
 
   q('#splitState').value =
     layer.state ||
     '';
 
-
   q('#splitterSubtitle')
     .textContent =
     `Capa fuente: ${layer.name} · ${width}×${height}px`;
-
 
   q('#splitInfo')
     .textContent =
     'Pinta una zona para ver la vista previa.';
 
-
   setSplitterTool(
     'brush'
   );
 
-
   renderSplitter();
 
   renderSplitPreview();
-
 
   q('#splitterModal')
     .classList
     .add(
       'open'
     );
-
 
   q('#splitterModal')
     .setAttribute(
@@ -7607,20 +7059,17 @@ function closeSplitter() {
   splitter.targetId =
     null;
 
-
   q('#splitterModal')
     .classList
     .remove(
       'open'
     );
 
-
   q('#splitterModal')
     .setAttribute(
       'aria-hidden',
       'true'
     );
-
 
   q('#splitterCursor')
     .hidden =
@@ -7636,14 +7085,11 @@ function renderSplitter() {
   const context =
     splitter.displayCtx;
 
-
   const width =
     splitter.display.width;
 
-
   const height =
     splitter.display.height;
-
 
   context.clearRect(
     0,
@@ -7652,16 +7098,13 @@ function renderSplitter() {
     height
   );
 
-
   context.drawImage(
     splitter.sourceCanvas,
     0,
     0
   );
 
-
   context.save();
-
 
   context.globalAlpha =
     Number(
@@ -7670,16 +7113,13 @@ function renderSplitter() {
     ) /
     100;
 
-
   context.drawImage(
     splitter.maskCanvas,
     0,
     0
   );
 
-
   context.restore();
-
 
   if (
     splitter.tool ===
@@ -7690,10 +7130,8 @@ function renderSplitter() {
   ) {
     context.save();
 
-
     context.strokeStyle =
       '#ffffff';
-
 
     context.lineWidth =
       Math.max(
@@ -7703,7 +7141,6 @@ function renderSplitter() {
         2
       );
 
-
     context.setLineDash(
       [
         8,
@@ -7711,9 +7148,7 @@ function renderSplitter() {
       ]
     );
 
-
     context.beginPath();
-
 
     context.moveTo(
       splitter
@@ -7724,7 +7159,6 @@ function renderSplitter() {
         .lassoPoints[0]
         .y
     );
-
 
     for (
       const point
@@ -7737,7 +7171,6 @@ function renderSplitter() {
         point.y
       );
     }
-
 
     context.stroke();
 
@@ -7756,7 +7189,6 @@ function splitterCanvasPoint(
   const rect =
     splitter.display
       .getBoundingClientRect();
-
 
   return {
     x:
@@ -7789,16 +7221,13 @@ function drawBrushSegment(
   const context =
     splitter.maskCtx;
 
-
   const size =
     Number(
       q('#brushSize')
         .value
     );
 
-
   context.save();
-
 
   if (
     splitter.tool ===
@@ -7824,7 +7253,6 @@ function drawBrushSegment(
       '#ff69d4';
   }
 
-
   context.lineWidth =
     size;
 
@@ -7833,7 +7261,6 @@ function drawBrushSegment(
 
   context.lineJoin =
     'round';
-
 
   context.beginPath();
 
@@ -7848,7 +7275,6 @@ function drawBrushSegment(
   );
 
   context.stroke();
-
 
   if (
     from.x ===
@@ -7871,7 +7297,6 @@ function drawBrushSegment(
     context.fill();
   }
 
-
   context.restore();
 }
 
@@ -7890,30 +7315,23 @@ function fillLasso(
     return;
   }
 
-
   const context =
     splitter.maskCtx;
 
-
   context.save();
-
 
   context.globalCompositeOperation =
     'source-over';
 
-
   context.fillStyle =
     '#ff69d4';
 
-
   context.beginPath();
-
 
   context.moveTo(
     points[0].x,
     points[0].y
   );
-
 
   for (
     const point
@@ -7924,7 +7342,6 @@ function fillLasso(
       point.y
     );
   }
-
 
   context.closePath();
 
@@ -7942,10 +7359,8 @@ function maskBounds() {
   const width =
     splitter.maskCanvas.width;
 
-
   const height =
     splitter.maskCanvas.height;
-
 
   if (
     !width ||
@@ -7953,7 +7368,6 @@ function maskBounds() {
   ) {
     return null;
   }
-
 
   const mask =
     splitter.maskCtx
@@ -7965,7 +7379,6 @@ function maskBounds() {
       )
       .data;
 
-
   const source =
     splitter.sourceCtx
       .getImageData(
@@ -7975,7 +7388,6 @@ function maskBounds() {
         height
       )
       .data;
-
 
   let minX =
     width;
@@ -7991,7 +7403,6 @@ function maskBounds() {
 
   let count =
     0;
-
 
   for (
     let y =
@@ -8014,7 +7425,6 @@ function maskBounds() {
           x
         ) *
         4;
-
 
       if (
         mask[
@@ -8057,14 +7467,12 @@ function maskBounds() {
     }
   }
 
-
   if (
     maxX <
     0
   ) {
     return null;
   }
-
 
   return {
     x:
@@ -8101,12 +7509,10 @@ function expandBounds(
       .sourceCanvas
       .width;
 
-
   const height =
     splitter
       .sourceCanvas
       .height;
-
 
   const pad =
     clamp(
@@ -8117,7 +7523,6 @@ function expandBounds(
       3
     );
 
-
   const x =
     Math.max(
       0,
@@ -8125,14 +7530,12 @@ function expandBounds(
       pad
     );
 
-
   const y =
     Math.max(
       0,
       bounds.y -
       pad
     );
-
 
   const right =
     Math.min(
@@ -8142,7 +7545,6 @@ function expandBounds(
       pad
     );
 
-
   const bottom =
     Math.min(
       height,
@@ -8150,7 +7552,6 @@ function expandBounds(
       bounds.h +
       pad
     );
-
 
   return {
     x,
@@ -8171,7 +7572,7 @@ function expandBounds(
 
 
 /* =========================================================
-   SPLITTER · DILATACIÓN SUAVE
+   SPLITTER · DILATACIÓN
    ========================================================= */
 
 function expandedMaskAlpha(
@@ -8184,7 +7585,6 @@ function expandedMaskAlpha(
 ) {
   let maximum =
     0;
-
 
   for (
     let yy =
@@ -8233,13 +7633,11 @@ function expandedMaskAlpha(
           3
         ];
 
-
       maximum =
         Math.max(
           maximum,
           alpha
         );
-
 
       if (
         maximum ===
@@ -8249,7 +7647,6 @@ function expandedMaskAlpha(
       }
     }
   }
-
 
   return maximum /
     255;
@@ -8272,12 +7669,10 @@ function extractCanvas(
       .sourceCanvas
       .width;
 
-
   const height =
     splitter
       .sourceCanvas
       .height;
-
 
   const sourceData =
     splitter.sourceCtx
@@ -8288,7 +7683,6 @@ function extractCanvas(
         height
       );
 
-
   const maskData =
     splitter.maskCtx
       .getImageData(
@@ -8297,7 +7691,6 @@ function extractCanvas(
         width,
         height
       );
-
 
   const cleanupRadius =
     clamp(
@@ -8308,12 +7701,10 @@ function extractCanvas(
       3
     );
 
-
   const output =
     document.createElement(
       'canvas'
     );
-
 
   output.width =
     bounds.w;
@@ -8321,12 +7712,10 @@ function extractCanvas(
   output.height =
     bounds.h;
 
-
   const outputContext =
     output.getContext(
       '2d'
     );
-
 
   const outputData =
     outputContext
@@ -8334,7 +7723,6 @@ function extractCanvas(
         bounds.w,
         bounds.h
       );
-
 
   for (
     let yy =
@@ -8347,7 +7735,6 @@ function extractCanvas(
       bounds.y +
       yy;
 
-
     for (
       let xx =
         0;
@@ -8359,7 +7746,6 @@ function extractCanvas(
         bounds.x +
         xx;
 
-
       const sourceIndex =
         (
           sourceY *
@@ -8367,7 +7753,6 @@ function extractCanvas(
           sourceX
         ) *
         4;
-
 
       const outputIndex =
         (
@@ -8377,7 +7762,6 @@ function extractCanvas(
         ) *
         4;
 
-
       const sourceAlpha =
         sourceData.data[
           sourceIndex +
@@ -8385,14 +7769,12 @@ function extractCanvas(
         ] /
         255;
 
-
       if (
         sourceAlpha <=
         0
       ) {
         continue;
       }
-
 
       const maskAlpha =
         cleanupRadius >
@@ -8411,7 +7793,6 @@ function extractCanvas(
             ] /
             255;
 
-
       if (
         maskAlpha <=
         0
@@ -8419,14 +7800,12 @@ function extractCanvas(
         continue;
       }
 
-
       outputData.data[
         outputIndex
       ] =
         sourceData.data[
           sourceIndex
         ];
-
 
       outputData.data[
         outputIndex +
@@ -8437,7 +7816,6 @@ function extractCanvas(
           1
         ];
 
-
       outputData.data[
         outputIndex +
         2
@@ -8446,7 +7824,6 @@ function extractCanvas(
           sourceIndex +
           2
         ];
-
 
       outputData.data[
         outputIndex +
@@ -8460,7 +7837,6 @@ function extractCanvas(
     }
   }
 
-
   outputContext
     .putImageData(
       outputData,
@@ -8468,13 +7844,11 @@ function extractCanvas(
       0
     );
 
-
   if (
     removeFromOriginal
   ) {
     const radius =
       cleanupRadius;
-
 
     const x0 =
       Math.max(
@@ -8483,14 +7857,12 @@ function extractCanvas(
         radius
       );
 
-
     const y0 =
       Math.max(
         0,
         bounds.y -
         radius
       );
-
 
     const x1 =
       Math.min(
@@ -8503,7 +7875,6 @@ function extractCanvas(
         radius
       );
 
-
     const y1 =
       Math.min(
         height -
@@ -8514,7 +7885,6 @@ function extractCanvas(
         1 +
         radius
       );
-
 
     for (
       let y =
@@ -8538,7 +7908,6 @@ function extractCanvas(
           ) *
           4;
 
-
         if (
           sourceData.data[
             index +
@@ -8548,7 +7917,6 @@ function extractCanvas(
         ) {
           continue;
         }
-
 
         const coverage =
           radius >
@@ -8567,7 +7935,6 @@ function extractCanvas(
               ] /
               255;
 
-
         if (
           coverage <=
           0
@@ -8575,14 +7942,12 @@ function extractCanvas(
           continue;
         }
 
-
         const originalAlpha =
           sourceData.data[
             index +
             3
           ] /
           255;
-
 
         const remaining =
           originalAlpha *
@@ -8594,7 +7959,6 @@ function extractCanvas(
               1.12
             )
           );
-
 
         sourceData.data[
           index +
@@ -8610,7 +7974,6 @@ function extractCanvas(
       }
     }
 
-
     splitter.sourceCtx
       .putImageData(
         sourceData,
@@ -8618,7 +7981,6 @@ function extractCanvas(
         0
       );
   }
-
 
   return output;
 }
@@ -8632,10 +7994,8 @@ function renderSplitPreview() {
   const context =
     splitter.previewCtx;
 
-
   const canvas =
     splitter.preview;
-
 
   context.clearRect(
     0,
@@ -8644,10 +8004,8 @@ function renderSplitPreview() {
     canvas.height
   );
 
-
   const bounds =
     maskBounds();
-
 
   if (!bounds) {
     q('#splitInfo')
@@ -8657,7 +8015,6 @@ function renderSplitPreview() {
     return;
   }
 
-
   const cleanup =
     Number(
       q('#edgeCleanup')
@@ -8665,13 +8022,11 @@ function renderSplitPreview() {
     ) ||
     0;
 
-
   const outputBounds =
     expandBounds(
       bounds,
       cleanup
     );
-
 
   const temp =
     extractCanvas(
@@ -8680,10 +8035,8 @@ function renderSplitPreview() {
       cleanup
     );
 
-
   const padding =
     18;
-
 
   const scale =
     Math.min(
@@ -8702,16 +8055,13 @@ function renderSplitPreview() {
       outputBounds.h
     );
 
-
   const drawWidth =
     outputBounds.w *
     scale;
 
-
   const drawHeight =
     outputBounds.h *
     scale;
-
 
   context.drawImage(
     temp,
@@ -8732,7 +8082,6 @@ function renderSplitPreview() {
     drawHeight
   );
 
-
   q('#splitInfo')
     .textContent =
     `Selección: ${bounds.w}×${bounds.h}px · ${bounds.count.toLocaleString()} píxeles`;
@@ -8751,15 +8100,12 @@ async function extractSelectedLayer() {
         splitter.targetId
     );
 
-
   if (!sourceLayer) {
     return;
   }
 
-
   const selectionBounds =
     maskBounds();
-
 
   if (!selectionBounds) {
     alert(
@@ -8769,31 +8115,24 @@ async function extractSelectedLayer() {
     return;
   }
 
-
   pushHistory();
-
 
   splitBackup =
     currentProject();
-
 
   q('#undoSplit')
     .disabled =
     false;
 
-
   const originalWidth =
     sourceLayer.image.width;
-
 
   const originalHeight =
     sourceLayer.image.height;
 
-
   const remove =
     q('#removeOriginal')
       .checked;
-
 
   const cleanup =
     Number(
@@ -8802,13 +8141,11 @@ async function extractSelectedLayer() {
     ) ||
     0;
 
-
   const bounds =
     expandBounds(
       selectionBounds,
       cleanup
     );
-
 
   const cropCanvas =
     extractCanvas(
@@ -8817,18 +8154,15 @@ async function extractSelectedLayer() {
       cleanup
     );
 
-
   const cropSrc =
     cropCanvas.toDataURL(
       'image/png'
     );
 
-
   const cropImage =
     await loadImage(
       cropSrc
     );
-
 
   if (
     remove
@@ -8839,16 +8173,13 @@ async function extractSelectedLayer() {
           'image/png'
         );
 
-
     sourceLayer.src =
       sourceSrc;
-
 
     sourceLayer.image =
       await loadImage(
         sourceSrc
       );
-
 
     sourceLayer.base =
       engine.snapshot(
@@ -8856,30 +8187,25 @@ async function extractSelectedLayer() {
       );
   }
 
-
   const cropCenterX =
     bounds.x +
     bounds.w /
     2;
-
 
   const cropCenterY =
     bounds.y +
     bounds.h /
     2;
 
-
   const localOffsetX =
     cropCenterX -
     originalWidth /
     2;
 
-
   const localOffsetY =
     cropCenterY -
     originalHeight /
     2;
-
 
   const newLayer =
     engine.addLayer({
@@ -8942,22 +8268,18 @@ async function extractSelectedLayer() {
         true
     });
 
-
   newLayer.base =
     engine.snapshot(
       newLayer
     );
-
 
   multiSelection.clear();
 
   engine.selectedId =
     newLayer.id;
 
-
   timelinePreviewActive =
     false;
-
 
   renderLayers();
 
@@ -8966,7 +8288,6 @@ async function extractSelectedLayer() {
   renderTimelineLists();
 
   closeSplitter();
-
 
   await persistProject({
     broadcast: true
@@ -9055,7 +8376,6 @@ q('#clearMask')
             .height
         );
 
-
       renderSplitter();
 
       renderSplitPreview();
@@ -9072,12 +8392,10 @@ q('#selectVisible')
           .sourceCanvas
           .width;
 
-
       const height =
         splitter
           .sourceCanvas
           .height;
-
 
       const source =
         splitter.sourceCtx
@@ -9088,14 +8406,12 @@ q('#selectVisible')
             height
           );
 
-
       const mask =
         splitter.maskCtx
           .createImageData(
             width,
             height
           );
-
 
       for (
         let index =
@@ -9115,12 +8431,10 @@ q('#selectVisible')
           continue;
         }
 
-
         mask.data[
           index
         ] =
           255;
-
 
         mask.data[
           index +
@@ -9128,13 +8442,11 @@ q('#selectVisible')
         ] =
           105;
 
-
         mask.data[
           index +
           2
         ] =
           212;
-
 
         mask.data[
           index +
@@ -9142,7 +8454,6 @@ q('#selectVisible')
         ] =
           255;
       }
-
 
       splitter.maskCtx
         .clearRect(
@@ -9152,14 +8463,12 @@ q('#selectVisible')
           height
         );
 
-
       splitter.maskCtx
         .putImageData(
           mask,
           0,
           0
         );
-
 
       renderSplitter();
 
@@ -9220,26 +8529,21 @@ splitter.display
         return;
       }
 
-
       splitter.display
         .setPointerCapture(
           event.pointerId
         );
-
 
       const point =
         splitterCanvasPoint(
           event
         );
 
-
       splitter.painting =
         true;
 
-
       splitter.lastPoint =
         point;
-
 
       if (
         splitter.tool ===
@@ -9270,10 +8574,8 @@ splitter.display
         splitter.display
           .getBoundingClientRect();
 
-
       const cursor =
         q('#splitterCursor');
-
 
       if (
         splitter.tool ===
@@ -9290,22 +8592,17 @@ splitter.display
           splitter.display
             .width;
 
-
         cursor.hidden =
           false;
-
 
         cursor.style.left =
           `${event.clientX}px`;
 
-
         cursor.style.top =
           `${event.clientY}px`;
 
-
         cursor.style.width =
           `${cssSize}px`;
-
 
         cursor.style.height =
           `${cssSize}px`;
@@ -9315,19 +8612,16 @@ splitter.display
           true;
       }
 
-
       if (
         !splitter.painting
       ) {
         return;
       }
 
-
       const point =
         splitterCanvasPoint(
           event
         );
-
 
       if (
         splitter.tool ===
@@ -9338,7 +8632,6 @@ splitter.display
             .lassoPoints
             .at(-1);
 
-
         const minStep =
           Math.max(
             2,
@@ -9346,7 +8639,6 @@ splitter.display
               .width /
             700
           );
-
 
         if (
           !previous ||
@@ -9372,11 +8664,9 @@ splitter.display
           point
         );
 
-
         splitter.lastPoint =
           point;
       }
-
 
       renderSplitter();
     }
@@ -9390,10 +8680,8 @@ function finishSplitterPointer() {
     return;
   }
 
-
   splitter.painting =
     false;
-
 
   if (
     splitter.tool ===
@@ -9403,15 +8691,12 @@ function finishSplitterPointer() {
       splitter.lassoPoints
     );
 
-
     splitter.lassoPoints =
       [];
   }
 
-
   splitter.lastPoint =
     null;
-
 
   renderSplitter();
 
@@ -9458,19 +8743,15 @@ q('#undoSplit')
         return;
       }
 
-
       const backup =
         splitBackup;
-
 
       splitBackup =
         null;
 
-
       q('#undoSplit')
         .disabled =
         true;
-
 
       animator.pause();
 
@@ -9480,17 +8761,14 @@ q('#undoSplit')
       animator.manualStates
         .clear();
 
-
       await engine.load(
         backup
       );
-
 
       multiSelection.clear();
 
       timelinePreviewActive =
         false;
-
 
       renderLayers();
 
@@ -9503,7 +8781,6 @@ q('#undoSplit')
       engine.draw();
 
       drawSelectionOverlay();
-
 
       await persistProject({
         broadcast: true
@@ -9519,10 +8796,6 @@ q('#undoSplit')
 document.addEventListener(
   'keydown',
   event => {
-    /*
-     * ESC
-     */
-
     if (
       event.key ===
       'Escape'
@@ -9539,7 +8812,6 @@ document.addEventListener(
         return;
       }
 
-
       if (
         !organicPanel.hidden
       ) {
@@ -9547,7 +8819,6 @@ document.addEventListener(
 
         return;
       }
-
 
       if (
         multiSelection.size
@@ -9564,11 +8835,6 @@ document.addEventListener(
       }
     }
 
-
-    /*
-     * CTRL + Z
-     */
-
     if (
       (
         event.ctrlKey ||
@@ -9582,14 +8848,6 @@ document.addEventListener(
 
       undoLastChange();
     }
-
-
-    /*
-     * CTRL + A
-     *
-     * Solo si no estamos
-     * escribiendo en un input.
-     */
 
     if (
       (
@@ -9624,11 +8882,6 @@ document.addEventListener(
 function previewFrame(
   now
 ) {
-  /*
-   * Mientras arrastramos,
-   * nosotros controlamos runtime.
-   */
-
   if (
     !animator.playing &&
     !canvasInteraction
@@ -9638,25 +8891,16 @@ function previewFrame(
         ? animator.currentTime
         : -1;
 
-
-    /*
-     * Respiración y tics
-     * siguen visibles si están
-     * habilitados.
-     */
-
     animator.evaluate(
       evaluationTime,
       true,
       now
     );
 
-
     engine.draw();
 
     drawSelectionOverlay();
   }
-
 
   requestAnimationFrame(
     previewFrame
@@ -9672,7 +8916,6 @@ async function boot() {
   try {
     const saved =
       await loadCurrentProject();
-
 
     if (
       saved?.layers
@@ -9690,17 +8933,13 @@ async function boot() {
     );
   }
 
-
   editorMode =
     'design';
 
-
   multiSelection.clear();
-
 
   selectedAnimationRef =
     null;
-
 
   renderLayers();
 
@@ -9714,16 +8953,15 @@ async function boot() {
 
   updateSelectedAnimationLabel();
 
+  syncLayerMotionButton();
 
   engine.draw();
 
   drawSelectionOverlay();
 
-
   requestAnimationFrame(
     fitStage
   );
-
 
   requestAnimationFrame(
     previewFrame
