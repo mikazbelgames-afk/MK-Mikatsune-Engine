@@ -3,125 +3,43 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>MK Mikatsune Engine v0.2.1</title>
+  <title>MK Mikatsune Engine v0.2.2</title>
   <link rel="stylesheet" href="./style.css">
 </head>
-
 <body>
-
   <div class="app">
-
     <aside class="panel">
-
       <h1>MK Mikatsune Engine</h1>
       <p>Rig + animación 2D ligera</p>
 
-      <button id="add">
-        Cargar pieza PNG
-      </button>
+      <button id="add">Cargar pieza PNG</button>
+      <input id="file" type="file" accept="image/png,image/webp" hidden>
 
-      <input
-        id="file"
-        type="file"
-        accept="image/png,image/webp"
-        hidden
-      >
+      <button id="splitLayer" class="accent">✂ Separar capa</button>
+      <button id="undoSplit" disabled>↶ Deshacer última separación</button>
 
-      <button
-        id="splitLayer"
-        class="accent"
-      >
-        ✂ Separar capa
-      </button>
+      <button id="save">Guardar proyecto</button>
+      <input id="loadFile" type="file" accept="application/json" hidden>
+      <button id="load">Abrir proyecto</button>
 
-      <button
-        id="undoSplit"
-        disabled
-      >
-        ↶ Deshacer última separación
-      </button>
-
-      <button id="save">
-        Guardar proyecto
-      </button>
-
-      <input
-        id="loadFile"
-        type="file"
-        accept="application/json"
-        hidden
-      >
-
-      <button id="load">
-        Abrir proyecto
-      </button>
-
-
-      <div class="section-title">
-        Capas
-      </div>
-
+      <div class="section-title">Capas</div>
 
       <div class="layer-master-controls">
-
-        <button
-          id="showAllLayers"
-          type="button"
-        >
-          👁 Mostrar todas
-        </button>
-
-        <button
-          id="hideAllLayers"
-          type="button"
-        >
-          ◉ Ocultar todas
-        </button>
-
+        <button id="showAllLayers" type="button">👁 Mostrar todas</button>
+        <button id="hideAllLayers" type="button">◉ Ocultar todas</button>
       </div>
 
-
       <div id="layers"></div>
-
     </aside>
 
-
-    <!-- ==========================
-         LIENZO
-    =========================== -->
-
     <main id="stageArea">
-
       <div class="toolbar">
+        <button id="idle">⏸ Idle</button>
+        <button id="blink">Parpadeo</button>
+        <button id="reset">Reset</button>
 
-        <button id="idle">
-          ⏸ Idle
-        </button>
-
-        <button id="blink">
-          Parpadeo
-        </button>
-
-        <button id="reset">
-          Reset
-        </button>
-
-
-        <!-- ZOOM -->
-
-        <div
-          class="zoom-controls"
-          aria-label="Zoom del lienzo"
-        >
-
-          <button
-            id="zoomOut"
-            type="button"
-            title="Alejar"
-          >
-            −
-          </button>
-
+        <div class="zoom-controls" aria-label="Zoom del lienzo">
+          <button id="zoomOut" type="button" title="Alejar">−</button>
 
           <input
             id="zoomRange"
@@ -132,278 +50,260 @@
             value="100"
           >
 
+          <button id="zoomIn" type="button" title="Acercar">+</button>
+          <button id="zoomFit" type="button" title="Ajustar al área">Ajustar</button>
 
-          <button
-            id="zoomIn"
-            type="button"
-            title="Acercar"
-          >
-            +
-          </button>
-
-
-          <button
-            id="zoomFit"
-            type="button"
-            title="Ajustar al área"
-          >
-            Ajustar
-          </button>
-
-
-          <span id="zoomValue">
-            100%
-          </span>
-
+          <span id="zoomValue">100%</span>
         </div>
-
       </div>
 
+      <div id="stageViewport" class="stage-viewport">
+        <div id="stageShell" class="stage-shell checkerboard">
+          <canvas id="stage" width="1080" height="1080"></canvas>
+        </div>
+      </div>
 
-      <div
-        id="stageViewport"
-        class="stage-viewport"
-      >
+      <section class="timeline-panel" aria-label="Timeline">
+        <div class="timeline-topbar">
+          <button id="timelinePlay" type="button">▶ Timeline</button>
+          <button id="timelineStop" type="button">■</button>
 
-        <div
-          id="stageShell"
-          class="stage-shell checkerboard"
+          <label>
+            Duración
+            <input
+              id="timelineDuration"
+              type="number"
+              min="0.5"
+              max="120"
+              step="0.5"
+              value="10"
+            >
+            s
+          </label>
+
+          <span id="timelineTime">0.00 s</span>
+
+          <label class="checkbox-row mini">
+            <input id="timelineLoop" type="checkbox" checked>
+            <span>Loop</span>
+          </label>
+
+          <label class="checkbox-row mini">
+            <input id="timelineRuntime" type="checkbox" checked>
+            <span>Runtime</span>
+          </label>
+        </div>
+
+        <input
+          id="timelineScrub"
+          class="timeline-scrub"
+          type="range"
+          min="0"
+          max="10"
+          step="0.01"
+          value="0"
         >
 
-          <canvas
-            id="stage"
-            width="1080"
-            height="1080"
-          ></canvas>
+        <div class="timeline-actions">
+          <button id="addKeyframe" class="accent" type="button">
+            ◆ Guardar keyframe de capa
+          </button>
 
+          <button id="deleteKeyframe" type="button">
+            Eliminar keyframe cercano
+          </button>
+
+          <button id="addStateKeyframe" type="button">
+            ◇ Guardar estado Grupo/Estado
+          </button>
         </div>
 
-      </div>
+        <div class="timeline-tracks">
+          <div>
+            <strong>Capa seleccionada</strong>
+            <div id="layerKeyframeList" class="keyframe-list"></div>
+          </div>
 
+          <div>
+            <strong>Estados</strong>
+            <div id="stateKeyframeList" class="keyframe-list"></div>
+          </div>
+        </div>
+      </section>
     </main>
 
-
-    <!-- ==========================
-         INSPECTOR
-    =========================== -->
-
-    <aside class="panel">
-
+    <aside class="panel inspector-panel">
       <h2>Inspector</h2>
-
 
       <label>
         Nombre
-
-        <input
-          id="name"
-          type="text"
-        >
+        <input id="name" type="text">
       </label>
-
 
       <label>
         Rol
-
         <select id="role">
-
           <option>generic</option>
-
           <option>body</option>
-
           <option>head</option>
-
           <option>earL</option>
-
           <option>earR</option>
-
           <option>eyeL</option>
-
           <option>eyeR</option>
-
           <option>mouth</option>
-
           <option>paw</option>
-
           <option>tail</option>
-
           <option>crystal</option>
-
         </select>
-
       </label>
 
+      <div class="section-title">Identidad de pieza</div>
+
+      <label>
+        Grupo
+        <input id="group" type="text" placeholder="Ej: Ojos">
+      </label>
+
+      <label>
+        Estado
+        <input id="state" type="text" placeholder="Ej: Abierto">
+      </label>
+
+      <button id="activateState" type="button">
+        Activar este estado
+      </button>
+
+      <p class="hint">
+        Ejemplo: dos PNG pueden usar Grupo “Ojos” y Estados “Abierto” / “Cerrado”.
+      </p>
 
       <label class="checkbox-row inspector-visible">
-
-        <input
-          id="visible"
-          type="checkbox"
-          checked
-        >
-
-        <span>
-          Mostrar esta capa
-        </span>
-
+        <input id="visible" type="checkbox" checked>
+        <span>Mostrar esta capa</span>
       </label>
 
+      <div class="section-title">Transformación</div>
 
       <label>
         X
-        <input
-          id="x"
-          type="number"
-        >
+        <input id="x" type="number">
       </label>
-
 
       <label>
         Y
-        <input
-          id="y"
-          type="number"
-        >
+        <input id="y" type="number">
       </label>
-
 
       <label>
         Escala
-
-        <input
-          id="scale"
-          type="number"
-          step="0.01"
-        >
+        <input id="scale" type="number" step="0.01">
       </label>
-
 
       <label>
         Rotación
-
-        <input
-          id="rotation"
-          type="number"
-          step="0.1"
-        >
+        <input id="rotation" type="number" step="0.1">
       </label>
-
 
       <label>
         Pivot X
-
-        <input
-          id="pivotX"
-          type="number"
-        >
+        <input id="pivotX" type="number">
       </label>
-
 
       <label>
         Pivot Y
-
-        <input
-          id="pivotY"
-          type="number"
-        >
+        <input id="pivotY" type="number">
       </label>
 
+      <div class="section-title">Idle orgánico</div>
 
-      <button
-        id="runtime"
-        type="button"
-      >
+      <label class="checkbox-row inspector-visible">
+        <input id="organicEnabled" type="checkbox">
+        <span>Usar intervalos variables</span>
+      </label>
+
+      <label>
+        Intervalo mín.
+        <input id="organicMin" type="number" min="0.1" step="0.1">
+        s
+      </label>
+
+      <label>
+        Intervalo máx.
+        <input id="organicMax" type="number" min="0.1" step="0.1">
+        s
+      </label>
+
+      <label>
+        Movimiento
+        <input id="organicAmount" type="number" min="0" step="0.1">
+        °
+      </label>
+
+      <label>
+        Duración tic
+        <input id="organicDuration" type="number" min="0.08" step="0.01">
+        s
+      </label>
+
+      <label>
+        Doble tic
+        <input
+          id="organicDouble"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+        >
+        %
+      </label>
+
+      <p class="hint">
+        Ideal para orejas: quieta… tic… pausa… movimiento… pausa.
+      </p>
+
+      <button id="runtime" type="button">
         Abrir runtime transparente
       </button>
 
-
-      <p
-        id="runtimeStatus"
-        class="hint"
-      ></p>
-
+      <p id="runtimeStatus" class="hint"></p>
     </aside>
-
   </div>
 
-
-  <!-- ==========================
-       SEPARADOR DE CAPAS
-  =========================== -->
-
-  <div
-    id="splitterModal"
-    class="splitter-modal"
-    aria-hidden="true"
-  >
-
+  <div id="splitterModal" class="splitter-modal" aria-hidden="true">
     <div class="splitter-card">
-
-
       <div class="splitter-header">
-
         <div>
-
-          <h2>
-            Separador de capas · V1.1
-          </h2>
+          <h2>Separador de capas · V1.2</h2>
 
           <p id="splitterSubtitle">
             Selecciona la parte que quieres convertir en una capa nueva.
           </p>
-
         </div>
 
-
-        <button
-          id="splitClose"
-          class="icon-btn"
-          title="Cerrar"
-        >
+        <button id="splitClose" class="icon-btn" title="Cerrar">
           ✕
         </button>
-
       </div>
 
-
       <div class="splitter-grid">
-
-
-        <!-- HERRAMIENTAS -->
-
         <section class="splitter-tools">
-
           <div class="section-title">
             Selección
           </div>
 
-
-          <button
-            id="toolBrush"
-            class="tool active"
-          >
+          <button id="toolBrush" class="tool active">
             🖌 Pincel +
           </button>
 
-
-          <button
-            id="toolErase"
-            class="tool"
-          >
+          <button id="toolErase" class="tool">
             ⌫ Borrar máscara
           </button>
 
-
-          <button
-            id="toolLasso"
-            class="tool"
-          >
+          <button id="toolLasso" class="tool">
             〰 Lazo libre
           </button>
 
-
           <label class="stack">
-
             Tamaño pincel
 
             <input
@@ -417,12 +317,9 @@
             <span id="brushSizeValue">
               48 px
             </span>
-
           </label>
 
-
           <label class="stack">
-
             Opacidad máscara
 
             <input
@@ -436,163 +333,120 @@
             <span id="maskOpacityValue">
               48%
             </span>
-
           </label>
 
+          <label class="stack">
+            Limpieza borde
+
+            <input
+              id="edgeCleanup"
+              type="range"
+              min="0"
+              max="3"
+              step="1"
+              value="1"
+            >
+
+            <span id="edgeCleanupValue">
+              1 px
+            </span>
+          </label>
 
           <button id="selectVisible">
             Seleccionar todo visible
           </button>
 
-
           <button id="clearMask">
             Vaciar máscara
           </button>
 
-
           <p class="hint">
-            Tip: usa el lazo para una selección rápida
-            y el pincel para corregir bordes.
+            La limpieza de borde elimina el pequeño halo de color que puede quedar al cortar.
           </p>
-
         </section>
 
-
-        <!-- LIENZO DEL SEPARADOR -->
-
         <section class="splitter-stage-wrap">
-
           <div class="checkerboard splitter-stage-shell">
-
             <canvas id="splitterCanvas"></canvas>
-
           </div>
-
 
           <div
             id="splitterCursor"
             class="splitter-cursor"
             hidden
           ></div>
-
         </section>
 
-
-        <!-- RESULTADO -->
-
         <section class="splitter-output">
-
-
           <div class="section-title">
             Nueva capa
           </div>
 
-
           <label class="stack">
-
             Nombre
-
-            <input
-              id="splitName"
-              type="text"
-              value="Pieza separada"
-            >
-
+            <input id="splitName" type="text" value="Pieza separada">
           </label>
 
-
           <label class="stack">
-
             Rol
 
             <select id="splitRole">
-
               <option>generic</option>
-
               <option>body</option>
-
               <option>head</option>
-
               <option>earL</option>
-
               <option>earR</option>
-
               <option>eyeL</option>
-
               <option>eyeR</option>
-
               <option>mouth</option>
-
               <option>paw</option>
-
               <option>tail</option>
-
               <option>crystal</option>
-
             </select>
-
           </label>
 
+          <label class="stack">
+            Grupo
+            <input id="splitGroup" type="text" placeholder="Ej: Ojos">
+          </label>
+
+          <label class="stack">
+            Estado
+            <input id="splitState" type="text" placeholder="Ej: Cerrado">
+          </label>
 
           <label class="checkbox-row">
-
-            <input
-              id="removeOriginal"
-              type="checkbox"
-              checked
-            >
+            <input id="removeOriginal" type="checkbox" checked>
 
             <span>
               Quitar la selección de la capa original
             </span>
-
           </label>
 
-
           <div class="split-preview checkerboard">
-
             <canvas
               id="splitPreview"
               width="320"
               height="320"
             ></canvas>
-
           </div>
 
-
-          <p
-            id="splitInfo"
-            class="hint"
-          >
+          <p id="splitInfo" class="hint">
             Pinta una zona para ver la vista previa.
           </p>
 
-
-          <button
-            id="extractLayer"
-            class="accent big"
-          >
+          <button id="extractLayer" class="accent big">
             Extraer como nueva capa
           </button>
-
 
           <button id="splitCancel">
             Cancelar
           </button>
-
         </section>
-
       </div>
-
     </div>
-
   </div>
 
-
-  <script
-    type="module"
-    src="./src/editor.js"
-  ></script>
-
+  <script type="module" src="./src/editor.js"></script>
 </body>
 </html>
