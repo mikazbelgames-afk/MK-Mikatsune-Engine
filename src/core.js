@@ -3,7 +3,6 @@ export function fileToDataURL(file) {
     const reader = new FileReader();
 
     reader.onload = () => resolve(reader.result);
-
     reader.onerror = () => reject(reader.error);
 
     reader.readAsDataURL(file);
@@ -33,41 +32,31 @@ export function loadImage(src) {
    MOVIMIENTO ORGÁNICO
    ========================================================= */
 
-function defaultOrganic(
-  role = 'generic'
-) {
+function defaultOrganic(role = 'generic') {
   const isEar =
     role === 'earL' ||
     role === 'earR';
 
   return {
-    enabled:
-      isEar,
+    enabled: isEar,
 
-    minInterval:
-      2,
+    minInterval: 2,
 
-    maxInterval:
-      3.5,
+    maxInterval: 3.5,
 
     amount:
       isEar
         ? 2.2
         : 1.5,
 
-    duration:
-      0.28,
+    duration: 0.28,
 
-    doubleChance:
-      0.28
+    doubleChance: 0.28
   };
 }
 
 
-function normalizeOrganic(
-  raw,
-  role
-) {
+function normalizeOrganic(raw, role) {
   const base =
     defaultOrganic(role);
 
@@ -115,20 +104,15 @@ function normalizeOrganic(
 
 function emptyAnimation() {
   return {
-    duration:
-      10,
+    duration: 10,
 
-    loop:
-      true,
+    loop: true,
 
-    playOnRuntime:
-      true,
+    playOnRuntime: true,
 
-    layerKeyframes:
-      {},
+    layerKeyframes: {},
 
-    stateKeyframes:
-      []
+    stateKeyframes: []
   };
 }
 
@@ -148,11 +132,9 @@ export class Engine {
         '2d'
       );
 
-    this.layers =
-      [];
+    this.layers = [];
 
-    this.selectedId =
-      null;
+    this.selectedId = null;
 
     this.animation =
       emptyAnimation();
@@ -179,16 +161,13 @@ export class Engine {
      AÑADIR CAPA
      ------------------------------------------------------- */
 
-  addLayer(
-    options = {}
-  ) {
+  addLayer(options = {}) {
     const role =
       options.role ||
       'generic';
 
 
     const layer = {
-
       id:
         options.id ||
         crypto.randomUUID(),
@@ -241,6 +220,22 @@ export class Engine {
         options.pivotY ??
         0,
 
+      /*
+       * Volteo NO destructivo.
+       *
+       * No modifica el PNG.
+       * Cada capa mantiene sus
+       * propios valores.
+       */
+
+      flipX:
+        options.flipX ??
+        false,
+
+      flipY:
+        options.flipY ??
+        false,
+
       visible:
         options.visible ??
         true,
@@ -251,24 +246,17 @@ export class Engine {
           role
         ),
 
-      runtime:
-        {},
+      runtime: {},
 
-      _organicRuntime:
-        null
+      _organicRuntime: null
     };
 
 
     layer.base =
-      this.snapshot(
-        layer
-      );
+      this.snapshot(layer);
 
 
-    this.layers.push(
-      layer
-    );
-
+    this.layers.push(layer);
 
     this.selectedId =
       layer.id;
@@ -305,6 +293,16 @@ export class Engine {
       pivotY:
         layer.pivotY,
 
+      flipX:
+        Boolean(
+          layer.flipX
+        ),
+
+      flipY:
+        Boolean(
+          layer.flipY
+        ),
+
       visible:
         layer.visible
     };
@@ -320,8 +318,7 @@ export class Engine {
       const layer
       of this.layers
     ) {
-      layer.runtime =
-        {};
+      layer.runtime = {};
     }
   }
 
@@ -347,9 +344,7 @@ export class Engine {
       const layer
       of this.layers
     ) {
-      if (
-        !layer.image
-      ) {
+      if (!layer.image) {
         continue;
       }
 
@@ -364,9 +359,7 @@ export class Engine {
         layer.visible;
 
 
-      if (
-        !visible
-      ) {
+      if (!visible) {
         continue;
       }
 
@@ -406,12 +399,48 @@ export class Engine {
         layer.pivotY;
 
 
+      const flipX =
+        runtime.flipX ??
+        layer.flipX ??
+        false;
+
+
+      const flipY =
+        runtime.flipY ??
+        layer.flipY ??
+        false;
+
+
+      const scaleX =
+        scale *
+        (
+          flipX
+            ? -1
+            : 1
+        );
+
+
+      const scaleY =
+        scale *
+        (
+          flipY
+            ? -1
+            : 1
+        );
+
+
       ctx.save();
 
 
       ctx.globalAlpha =
         opacity;
 
+
+      /*
+       * El punto X/Y representa
+       * la posición mundial
+       * del pivote.
+       */
 
       ctx.translate(
         x,
@@ -426,9 +455,17 @@ export class Engine {
       );
 
 
+      /*
+       * El volteo se aplica
+       * únicamente durante
+       * el render.
+       *
+       * El PNG original NO cambia.
+       */
+
       ctx.scale(
-        scale,
-        scale
+        scaleX,
+        scaleY
       );
 
 
@@ -459,7 +496,7 @@ export class Engine {
   serialize() {
     return {
       version:
-        '0.2.2',
+        '0.2.3',
 
       layers:
         this.layers.map(
@@ -505,6 +542,22 @@ export class Engine {
             pivotY:
               layer.pivotY,
 
+            /*
+             * IMPORTANTE:
+             * cada duplicado guarda
+             * su propio volteo.
+             */
+
+            flipX:
+              Boolean(
+                layer.flipX
+              ),
+
+            flipY:
+              Boolean(
+                layer.flipY
+              ),
+
             visible:
               layer.visible,
 
@@ -529,8 +582,7 @@ export class Engine {
      ------------------------------------------------------- */
 
   async load(data) {
-    this.layers =
-      [];
+    this.layers = [];
 
 
     for (
@@ -538,9 +590,7 @@ export class Engine {
       of data?.layers ||
       []
     ) {
-      if (
-        !raw?.src
-      ) {
+      if (!raw?.src) {
         continue;
       }
 
@@ -554,6 +604,20 @@ export class Engine {
       const layer =
         this.addLayer({
           ...raw,
+
+          /*
+           * Compatibilidad con
+           * proyectos anteriores.
+           */
+
+          flipX:
+            raw.flipX ??
+            false,
+
+          flipY:
+            raw.flipY ??
+            false,
+
           image
         });
 
@@ -580,15 +644,13 @@ export class Engine {
     };
 
 
-    this.animation
-      .layerKeyframes =
+    this.animation.layerKeyframes =
       this.animation
         .layerKeyframes ||
       {};
 
 
-    this.animation
-      .stateKeyframes =
+    this.animation.stateKeyframes =
       Array.isArray(
         this.animation
           .stateKeyframes
