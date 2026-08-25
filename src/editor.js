@@ -1,131 +1,95 @@
 import {
-  Engine,
-  fileToDataURL,
-  loadImage
+Engine,
+fileToDataURL,
+loadImage
 } from './core.js';
 
 import {
-  Animator
+Animator
 } from './animator.js';
 
 import {
-  saveCurrentProject,
-  loadCurrentProject,
-  broadcastProject
+saveCurrentProject,
+loadCurrentProject,
+broadcastProject
 } from './bridge.js';
 
 
 /* =========================================================
-   BASE
+   MK MIKATSUNE ENGINE
+   Editor v0.2.6
+   Root principal + Diseño / Animación
    ========================================================= */
 
 const q = selector =>
-  document.querySelector(selector);
-
+document.querySelector(selector);
 
 const stage =
-  q('#stage');
-
+q('#stage');
 
 const engine =
-  new Engine(stage);
-
+new Engine(stage);
 
 const animator =
-  new Animator(engine);
+new Animator(engine);
 
+let persistTimer = null;
+let splitBackup = null;
+let zoomPercent = 100;
+let timelinePreviewActive = false;
 
-/* =========================================================
-   ESTADO DEL EDITOR
-   ========================================================= */
-
-let persistTimer =
-  null;
-
-let splitBackup =
-  null;
-
-let zoomPercent =
-  100;
-
-let timelinePreviewActive =
-  false;
-
-let editorMode =
-  'design';
+let editorMode = 'design';
+let rootSelected = false;
 
 const multiSelection =
-  new Set();
+new Set();
 
-let selectedAnimationRef =
-  null;
+let selectedAnimationRef = null;
+let canvasInteraction = null;
 
-let canvasInteraction =
-  null;
-
-const undoStack =
-  [];
-
-let restoringHistory =
-  false;
+const undoStack = [];
+let restoringHistory = false;
 
 
 /* =========================================================
    UTILIDADES
    ========================================================= */
 
-function clamp(
-  value,
-  min,
-  max
-) {
-  return Math.max(
-    min,
-    Math.min(
-      max,
-      value
-    )
-  );
+function clamp(value, min, max) {
+return Math.max(
+min,
+Math.min(max, value)
+);
 }
 
 
-function escapeHTML(
-  value = ''
-) {
-  return String(
-    value
-  ).replace(
-    /[&<>'"]/g,
-    char => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      "'": '&#39;',
-      '"': '&quot;'
-    })[char]
-  );
+function escapeHTML(value = '') {
+return String(value).replace(
+/[&<>'"]/g,
+char => ({
+'&': '&amp;',
+'<': '&lt;',
+'>': '&gt;',
+"'": '&#39;',
+'"': '&quot;'
+})[char]
+);
 }
 
 
-function clonePlain(
-  value
-) {
-  if (
-    value == null
-  ) {
-    return null;
-  }
+function clonePlain(value) {
+if (value == null) {
+return null;
+}
 
-  return JSON.parse(
-    JSON.stringify(
-      value
-    )
-  );
+return JSON.parse(
+JSON.stringify(value)
+);
 }
 
 
 function currentProject() {
-  return engine.serialize();
+return engine.serialize();
 }
 
 
@@ -134,49 +98,49 @@ function currentProject() {
    ========================================================= */
 
 async function persistProject({
-  broadcast = false
+broadcast = false
 } = {}) {
-  try {
-    const project =
-      currentProject();
+try {
+const project =
+currentProject();
 
-    await saveCurrentProject(
-      project
-    );
+await saveCurrentProject(
+project
+);
 
-    if (broadcast) {
-      broadcastProject(
-        project
-      );
-    }
+if (broadcast) {
+broadcastProject(
+project
+);
+}
 
-    return true;
+return true;
 
-  } catch (error) {
-    console.error(
-      'No se pudo guardar el proyecto actual:',
-      error
-    );
+} catch (error) {
+console.error(
+'No se pudo guardar el proyecto actual:',
+error
+);
 
-    return false;
-  }
+return false;
+}
 }
 
 
 function queuePersist() {
-  clearTimeout(
-    persistTimer
-  );
+clearTimeout(
+persistTimer
+);
 
-  persistTimer =
-    setTimeout(
-      () => {
-        persistProject({
-          broadcast: true
-        });
-      },
-      120
-    );
+persistTimer =
+setTimeout(
+() => {
+persistProject({
+broadcast: true
+});
+},
+120
+);
 }
 
 
@@ -185,108 +149,288 @@ function queuePersist() {
    ========================================================= */
 
 function pushHistory() {
-  if (
-    restoringHistory
-  ) {
-    return;
-  }
+if (restoringHistory) {
+return;
+}
 
-  try {
-    undoStack.push(
-      JSON.stringify(
-        currentProject()
-      )
-    );
+try {
+undoStack.push(
+JSON.stringify(
+currentProject()
+)
+);
 
-    if (
-      undoStack.length >
-      12
-    ) {
-      undoStack.shift();
-    }
+if (
+undoStack.length > 12
+) {
+undoStack.shift();
+}
 
-  } catch (error) {
-    console.warn(
-      'No se pudo guardar historial:',
-      error
-    );
-  }
+} catch (error) {
+console.warn(
+'No se pudo guardar historial:',
+error
+);
+}
 }
 
 
 async function undoLastChange() {
-  if (
-    !undoStack.length
-  ) {
-    return;
-  }
+if (!undoStack.length) {
+return;
+}
 
-  const raw =
-    undoStack.pop();
+const raw =
+undoStack.pop();
 
-  if (!raw) {
-    return;
-  }
+if (!raw) {
+return;
+}
 
-  restoringHistory =
-    true;
+restoringHistory = true;
 
-  try {
-    animator.pause();
+try {
+animator.pause();
 
-    animator.manualStates
-      .clear();
+animator.manualStates
+.clear();
 
-    const project =
-      JSON.parse(raw);
+await engine.load(
+JSON.parse(raw)
+);
 
-    await engine.load(
-      project
-    );
+animator.currentTime = 0;
 
-    animator.currentTime =
-      0;
+rootSelected = false;
 
-    timelinePreviewActive =
-      false;
+multiSelection.clear();
 
-    multiSelection.clear();
+selectedAnimationRef = null;
 
-    selectedAnimationRef =
-      null;
+timelinePreviewActive = false;
 
-    updateSelectedAnimationLabel();
+updateSelectedAnimationLabel();
 
-    syncModeUI();
+syncModeUI();
 
-    syncTimelineUI();
+syncTimelineUI();
 
-    renderLayers();
+renderLayers();
 
-    syncInspector();
+syncInspector();
 
-    renderTimelineLists();
+renderTimelineLists();
 
-    engine.resetRuntime();
+engine.resetRuntime();
 
-    engine.draw();
+engine.draw();
 
-    drawSelectionOverlay();
+drawSelectionOverlay();
 
-    await persistProject({
-      broadcast: true
-    });
+await persistProject({
+broadcast: true
+});
 
-  } catch (error) {
-    console.error(
-      'No se pudo deshacer:',
-      error
-    );
+} catch (error) {
+console.error(
+'No se pudo deshacer:',
+error
+);
 
-  } finally {
-    restoringHistory =
-      false;
-  }
+} finally {
+restoringHistory = false;
+}
+}
+
+
+/* =========================================================
+   ROOT: GEOMETRÍA
+   ========================================================= */
+
+function rootPose() {
+if (
+typeof engine.getRootPose ===
+'function'
+) {
+return engine.getRootPose();
+}
+
+const root =
+engine.root;
+
+const runtime =
+root.runtime || {};
+
+return {
+x:
+runtime.x ??
+root.x,
+
+y:
+runtime.y ??
+root.y,
+
+scale:
+runtime.scale ??
+root.scale,
+
+rotation:
+runtime.rotation ??
+root.rotation,
+
+opacity:
+runtime.opacity ??
+root.opacity,
+
+pivotX:
+runtime.pivotX ??
+root.pivotX,
+
+pivotY:
+runtime.pivotY ??
+root.pivotY,
+
+visible:
+runtime.visible ??
+root.visible
+};
+}
+
+
+function snapshotRoot() {
+if (
+typeof engine.snapshotRoot ===
+'function'
+) {
+return engine.snapshotRoot();
+}
+
+return {
+x:
+engine.root.x,
+
+y:
+engine.root.y,
+
+scale:
+engine.root.scale,
+
+rotation:
+engine.root.rotation,
+
+opacity:
+engine.root.opacity,
+
+pivotX:
+engine.root.pivotX,
+
+pivotY:
+engine.root.pivotY,
+
+visible:
+engine.root.visible
+};
+}
+
+
+function rootLocalToWorldPoint(
+point,
+pose = rootPose()
+) {
+const scale =
+Number(pose.scale) || 1;
+
+const dx =
+(
+point.x -
+pose.pivotX
+) *
+scale;
+
+const dy =
+(
+point.y -
+pose.pivotY
+) *
+scale;
+
+const angle =
+Number(
+pose.rotation || 0
+) *
+Math.PI /
+180;
+
+const cos =
+Math.cos(angle);
+
+const sin =
+Math.sin(angle);
+
+return {
+x:
+pose.x +
+dx * cos -
+dy * sin,
+
+y:
+pose.y +
+dx * sin +
+dy * cos
+};
+}
+
+
+function worldToRootLocalPoint(
+point,
+pose = rootPose()
+) {
+const dx =
+point.x -
+pose.x;
+
+const dy =
+point.y -
+pose.y;
+
+const angle =
+Number(
+pose.rotation || 0
+) *
+Math.PI /
+180;
+
+const cos =
+Math.cos(angle);
+
+const sin =
+Math.sin(angle);
+
+const rx =
+cos * dx +
+sin * dy;
+
+const ry =
+-sin * dx +
+cos * dy;
+
+const scale =
+Math.max(
+0.0001,
+Math.abs(
+Number(pose.scale) || 1
+)
+);
+
+return {
+x:
+rx / scale +
+pose.pivotX,
+
+y:
+ry / scale +
+pose.pivotY
+};
 }
 
 
@@ -294,206 +438,255 @@ async function undoLastChange() {
    MODO DISEÑO / ANIMACIÓN
    ========================================================= */
 
-function setEditorMode(
-  mode
+function setEditorMode(mode) {
+if (
+mode !== 'design' &&
+mode !== 'animation'
 ) {
-  if (
-    mode !== 'design' &&
-    mode !== 'animation'
-  ) {
-    return;
-  }
+return;
+}
 
-  animator.pause();
+if (
+mode === 'animation' &&
+rootSelected
+) {
+alert(
+'El Mikatsune Root todavía se transforma en Modo Diseño. Su pista de animación será el siguiente paso.'
+);
 
-  editorMode =
-    mode;
+return;
+}
 
-  if (
-    editorMode ===
-    'design'
-  ) {
-    timelinePreviewActive =
-      false;
+animator.pause();
 
-    engine.resetRuntime();
+editorMode = mode;
 
-  } else {
-    timelinePreviewActive =
-      true;
+if (
+editorMode ===
+'design'
+) {
+timelinePreviewActive =
+false;
 
-    animator.evaluate(
-      animator.currentTime,
-      false
-    );
-  }
+engine.resetRuntime();
 
-  syncModeUI();
+} else {
+timelinePreviewActive =
+true;
 
-  syncInspector();
+animator.evaluate(
+animator.currentTime,
+false
+);
+}
 
-  engine.draw();
+syncModeUI();
 
-  drawSelectionOverlay();
+syncInspector();
+
+engine.draw();
+
+drawSelectionOverlay();
 }
 
 
 function syncModeUI() {
-  const design =
-    editorMode ===
-    'design';
+const design =
+editorMode ===
+'design';
 
-  q('#modeDesign')
-    .classList
-    .toggle(
-      'active',
-      design
-    );
+q('#modeDesign')
+.classList
+.toggle(
+'active',
+design
+);
 
-  q('#modeAnimation')
-    .classList
-    .toggle(
-      'active',
-      !design
-    );
+q('#modeAnimation')
+.classList
+.toggle(
+'active',
+!design
+);
 
-  q('#editorModeLabel')
-    .textContent =
-    design
-      ? 'Modo Diseño · no crea animación'
-      : 'Modo Animación · edita keyframes';
+q('#editorModeLabel')
+.textContent =
+design
+? 'Modo Diseño · no crea animación'
+: 'Modo Animación · edita keyframes';
 
-  const subtitle =
-    q('#inspectorSubtitle');
+const subtitle =
+q('#inspectorSubtitle');
 
-  if (
-    multiSelection.size >
-    1
-  ) {
-    subtitle.textContent =
-      `${multiSelection.size} capas seleccionadas`;
+if (rootSelected) {
+subtitle.textContent =
+'Mikatsune Root · padre global';
 
-  } else {
-    subtitle.textContent =
-      design
-        ? 'Capa seleccionada · Diseño'
-        : 'Pose del tiempo actual';
-  }
+} else if (
+multiSelection.size > 1
+) {
+subtitle.textContent =
+`${multiSelection.size} capas seleccionadas`;
+
+} else {
+subtitle.textContent =
+design
+? 'Capa seleccionada · Diseño'
+: 'Pose del tiempo actual';
+}
 }
 
 
 q('#modeDesign')
-  .addEventListener(
-    'click',
-    () => {
-      setEditorMode(
-        'design'
-      );
-    }
-  );
+.addEventListener(
+'click',
+() => {
+setEditorMode(
+'design'
+);
+}
+);
 
 
 q('#modeAnimation')
-  .addEventListener(
-    'click',
-    () => {
-      setEditorMode(
-        'animation'
-      );
-    }
-  );
+.addEventListener(
+'click',
+() => {
+setEditorMode(
+'animation'
+);
+}
+);
 
 
 /* =========================================================
-   POSE EFECTIVA
+   POSE EFECTIVA DE CAPA
    ========================================================= */
 
-function getEffectivePose(
-  layer
-) {
-  const runtime =
-    layer.runtime ||
-    {};
+function getEffectivePose(layer) {
+const runtime =
+layer.runtime || {};
 
-  const useRuntime =
-    editorMode ===
-      'animation' ||
-    timelinePreviewActive ||
-    animator.playing;
+const useRuntime =
+editorMode ===
+'animation' ||
+timelinePreviewActive ||
+animator.playing;
 
-  return {
-    x:
-      useRuntime
-        ? (
-            runtime.x ??
-            layer.x
-          )
-        : layer.x,
+return {
+x:
+useRuntime
+? (
+runtime.x ??
+layer.x
+)
+: layer.x,
 
-    y:
-      useRuntime
-        ? (
-            runtime.y ??
-            layer.y
-          )
-        : layer.y,
+y:
+useRuntime
+? (
+runtime.y ??
+layer.y
+)
+: layer.y,
 
-    scale:
-      useRuntime
-        ? (
-            runtime.scale ??
-            layer.scale
-          )
-        : layer.scale,
+scale:
+useRuntime
+? (
+runtime.scale ??
+layer.scale
+)
+: layer.scale,
 
-    rotation:
-      useRuntime
-        ? (
-            runtime.rotation ??
-            layer.rotation
-          )
-        : layer.rotation,
+rotation:
+useRuntime
+? (
+runtime.rotation ??
+layer.rotation
+)
+: layer.rotation,
 
-    opacity:
-      useRuntime
-        ? (
-            runtime.opacity ??
-            layer.opacity
-          )
-        : layer.opacity,
+opacity:
+useRuntime
+? (
+runtime.opacity ??
+layer.opacity
+)
+: layer.opacity,
 
-    pivotX:
-      useRuntime
-        ? (
-            runtime.pivotX ??
-            layer.pivotX
-          )
-        : layer.pivotX,
+pivotX:
+useRuntime
+? (
+runtime.pivotX ??
+layer.pivotX
+)
+: layer.pivotX,
 
-    pivotY:
-      useRuntime
-        ? (
-            runtime.pivotY ??
-            layer.pivotY
-          )
-        : layer.pivotY,
+pivotY:
+useRuntime
+? (
+runtime.pivotY ??
+layer.pivotY
+)
+: layer.pivotY,
 
-    visible:
-      useRuntime
-        ? (
-            runtime.visible ??
-            layer.visible
-          )
-        : layer.visible,
+visible:
+useRuntime
+? (
+runtime.visible ??
+layer.visible
+)
+: layer.visible,
 
-    flipX:
-      layer.flipX ||
-      false,
+flipX:
+Boolean(
+layer.flipX
+),
 
-    flipY:
-      layer.flipY ||
-      false
-  };
+flipY:
+Boolean(
+layer.flipY
+)
+};
+}
+
+
+function designPose(layer) {
+return {
+x:
+layer.x,
+
+y:
+layer.y,
+
+scale:
+layer.scale,
+
+rotation:
+layer.rotation,
+
+opacity:
+layer.opacity,
+
+pivotX:
+layer.pivotX,
+
+pivotY:
+layer.pivotY,
+
+visible:
+layer.visible,
+
+flipX:
+Boolean(
+layer.flipX
+),
+
+flipY:
+Boolean(
+layer.flipY
+)
+};
 }
 
 
@@ -502,706 +695,991 @@ function getEffectivePose(
    ========================================================= */
 
 function getLayerFrames(
-  layerId
+layerId
 ) {
-  engine.animation
-    .layerKeyframes =
-    engine.animation
-      .layerKeyframes ||
-    {};
+engine.animation
+.layerKeyframes =
+engine.animation
+.layerKeyframes ||
+{};
 
-  engine.animation
-    .layerKeyframes[
-      layerId
-    ] =
-    engine.animation
-      .layerKeyframes[
-        layerId
-      ] ||
-    [];
+engine.animation
+.layerKeyframes[
+layerId
+] =
+engine.animation
+.layerKeyframes[
+layerId
+] ||
+[];
 
-  return engine.animation
-    .layerKeyframes[
-      layerId
-    ];
+return engine.animation
+.layerKeyframes[
+layerId
+];
 }
 
 
 function cloneLayerFrames(
-  layerId
+layerId
 ) {
-  return clonePlain(
-    getLayerFrames(
-      layerId
-    )
-  ) || [];
+return (
+clonePlain(
+getLayerFrames(
+layerId
+)
+) ||
+[]
+);
 }
 
 
 function replaceLayerFrames(
-  layerId,
-  frames
+layerId,
+frames
 ) {
-  engine.animation
-    .layerKeyframes[
-      layerId
-    ] =
-    clonePlain(frames) ||
-    [];
+engine.animation
+.layerKeyframes[
+layerId
+] =
+clonePlain(
+frames
+) ||
+[];
 }
 
-
-/* =========================================================
-   CREAR / ACTUALIZAR KEYFRAME
-   ========================================================= */
 
 function writePoseKeyframe(
-  layer,
-  pose,
-  time =
-    animator.currentTime
+layer,
+pose,
+time =
+animator.currentTime
 ) {
-  const list =
-    getLayerFrames(
-      layer.id
-    );
+const list =
+getLayerFrames(
+layer.id
+);
 
-  let keyframe =
-    list.find(
-      item =>
-        Math.abs(
-          Number(
-            item.time
-          ) -
-          time
-        ) <
-        0.015
-    );
+let keyframe =
+list.find(
+item =>
+Math.abs(
+Number(
+item.time
+) -
+time
+) <
+0.015
+);
 
-  if (!keyframe) {
-    keyframe = {
-      id:
-        crypto.randomUUID(),
+if (!keyframe) {
+keyframe = {
+id:
+crypto.randomUUID(),
 
-      time
-    };
+time
+};
 
-    list.push(
-      keyframe
-    );
-  }
+list.push(
+keyframe
+);
+}
 
-  Object.assign(
-    keyframe,
-    {
-      x:
-        pose.x,
+Object.assign(
+keyframe,
+{
+x:
+pose.x,
 
-      y:
-        pose.y,
+y:
+pose.y,
 
-      scale:
-        pose.scale,
+scale:
+pose.scale,
 
-      rotation:
-        pose.rotation,
+rotation:
+pose.rotation,
 
-      opacity:
-        pose.opacity,
+opacity:
+pose.opacity,
 
-      pivotX:
-        pose.pivotX,
+pivotX:
+pose.pivotX,
 
-      pivotY:
-        pose.pivotY,
+pivotY:
+pose.pivotY,
 
-      visible:
-        pose.visible
-    }
-  );
+visible:
+pose.visible
+}
+);
 
-  list.sort(
-    (a, b) =>
-      a.time -
-      b.time
-  );
+list.sort(
+(a, b) =>
+a.time -
+b.time
+);
 
-  return keyframe;
+return keyframe;
 }
 
 
-/* =========================================================
-   DISEÑO:
-   TRANSFORMAR ANIMACIÓN EXISTENTE
-   ========================================================= */
-
 function shiftLayerFrames(
-  layerId,
-  dx,
-  dy
+layerId,
+dx,
+dy
 ) {
-  const frames =
-    getLayerFrames(
-      layerId
-    );
+for (
+const frame
+of getLayerFrames(
+layerId
+)
+) {
+if (
+frame.x !==
+undefined
+) {
+frame.x =
+Number(
+frame.x
+) +
+dx;
+}
 
-  for (
-    const frame
-    of frames
-  ) {
-    if (
-      frame.x !==
-      undefined
-    ) {
-      frame.x =
-        Number(
-          frame.x
-        ) +
-        dx;
-    }
-
-    if (
-      frame.y !==
-      undefined
-    ) {
-      frame.y =
-        Number(
-          frame.y
-        ) +
-        dy;
-    }
-  }
+if (
+frame.y !==
+undefined
+) {
+frame.y =
+Number(
+frame.y
+) +
+dy;
+}
+}
 }
 
 
 function scaleLayerFrames(
-  layerId,
-  factor
+layerId,
+factor
 ) {
-  const frames =
-    getLayerFrames(
-      layerId
-    );
-
-  for (
-    const frame
-    of frames
-  ) {
-    if (
-      frame.scale !==
-      undefined
-    ) {
-      frame.scale =
-        Number(
-          frame.scale
-        ) *
-        factor;
-    }
-  }
+for (
+const frame
+of getLayerFrames(
+layerId
+)
+) {
+if (
+frame.scale !==
+undefined
+) {
+frame.scale =
+Number(
+frame.scale
+) *
+factor;
+}
+}
 }
 
 
 function rotateLayerFrames(
-  layerId,
-  degrees
+layerId,
+degrees
 ) {
-  const frames =
-    getLayerFrames(
-      layerId
-    );
-
-  for (
-    const frame
-    of frames
-  ) {
-    if (
-      frame.rotation !==
-      undefined
-    ) {
-      frame.rotation =
-        Number(
-          frame.rotation
-        ) +
-        degrees;
-    }
-  }
+for (
+const frame
+of getLayerFrames(
+layerId
+)
+) {
+if (
+frame.rotation !==
+undefined
+) {
+frame.rotation =
+Number(
+frame.rotation
+) +
+degrees;
+}
+}
 }
 
 
 /* =========================================================
-   CAPAS
+   SELECCIÓN
    ========================================================= */
 
 function isMultiSelected(
-  layerId
+layerId
 ) {
-  return multiSelection.has(
-    layerId
-  );
+return multiSelection.has(
+layerId
+);
 }
 
 
-function clearMultiSelection() {
-  multiSelection.clear();
+function selectRoot() {
+animator.pause();
 
-  syncModeUI();
+rootSelected = true;
+
+multiSelection.clear();
+
+engine.selectedId = null;
+
+if (
+editorMode !==
+'design'
+) {
+editorMode =
+'design';
+
+timelinePreviewActive =
+false;
+
+engine.resetRuntime();
+}
+
+selectedAnimationRef =
+null;
+
+renderLayers();
+
+syncModeUI();
+
+syncInspector();
+
+renderTimelineLists();
+
+updateSelectedAnimationLabel();
+
+engine.draw();
+
+drawSelectionOverlay();
 }
 
 
 function selectSingleLayer(
-  id
+id
 ) {
-  multiSelection.clear();
+rootSelected = false;
 
-  engine.selectedId =
-    id;
+multiSelection.clear();
 
-  timelinePreviewActive =
-    editorMode ===
-    'animation';
+engine.selectedId =
+id;
 
-  renderLayers();
+timelinePreviewActive =
+editorMode ===
+'animation';
 
-  syncInspector();
+renderLayers();
 
-  renderTimelineLists();
+syncInspector();
 
-  syncModeUI();
+renderTimelineLists();
 
-  engine.draw();
+syncModeUI();
 
-  drawSelectionOverlay();
+engine.draw();
+
+drawSelectionOverlay();
 }
 
 
 function toggleMultiLayer(
-  id
+id
 ) {
-  if (
-    multiSelection.has(
-      id
-    )
-  ) {
-    multiSelection.delete(
-      id
-    );
+rootSelected = false;
 
-  } else {
-    multiSelection.add(
-      id
-    );
-  }
+if (
+multiSelection.has(
+id
+)
+) {
+multiSelection.delete(
+id
+);
 
-  if (
-    multiSelection.size
-  ) {
-    engine.selectedId =
-      id;
-
-  } else {
-    engine.selectedId =
-      null;
-  }
-
-  renderLayers();
-
-  syncInspector();
-
-  renderTimelineLists();
-
-  syncModeUI();
-
-  engine.draw();
-
-  drawSelectionOverlay();
+} else {
+multiSelection.add(
+id
+);
 }
 
+if (
+multiSelection.size
+) {
+engine.selectedId =
+id;
 
-function renderLayers() {
-  const container =
-    q('#layers');
+} else {
+engine.selectedId =
+null;
+}
 
-  container.innerHTML =
-    '';
+renderLayers();
 
-  const ordered =
-    [...engine.layers]
-      .reverse();
+syncInspector();
 
-  for (
-    const layer
-    of ordered
-  ) {
-    const row =
-      document.createElement(
-        'div'
-      );
+renderTimelineLists();
 
-    const classes =
-      ['layer'];
+syncModeUI();
 
-    if (
-      layer.id ===
-      engine.selectedId
-    ) {
-      classes.push(
-        'active'
-      );
-    }
+engine.draw();
 
-    if (
-      isMultiSelected(
-        layer.id
-      )
-    ) {
-      classes.push(
-        'multi-selected'
-      );
-    }
-
-    row.className =
-      classes.join(' ');
-
-    const info =
-      document.createElement(
-        'div'
-      );
-
-    info.style.minWidth =
-      '0';
-
-    info.style.flex =
-      '1';
-
-    const identity = [
-      layer.role ||
-        'generic',
-
-      layer.group
-        ? `Grupo: ${layer.group}`
-        : '',
-
-      layer.state
-        ? `Estado: ${layer.state}`
-        : '',
-
-      layer.flipX
-        ? '↔ H'
-        : '',
-
-      layer.flipY
-        ? '↕ V'
-        : ''
-    ]
-      .filter(Boolean)
-      .join(' · ');
-
-    info.innerHTML = `
-      <strong>
-        ${escapeHTML(
-          layer.name ||
-          'pieza'
-        )}
-      </strong>
-
-      <small>
-        ${escapeHTML(
-          identity
-        )}
-      </small>
-    `;
-
-    const eye =
-      document.createElement(
-        'button'
-      );
-
-    eye.type =
-      'button';
-
-    eye.title =
-      layer.visible
-        ? 'Ocultar capa'
-        : 'Mostrar capa';
-
-    eye.textContent =
-      layer.visible
-        ? '👁'
-        : '◉';
-
-    eye.style.cssText = [
-      'width:32px',
-      'height:28px',
-      'padding:0',
-      'margin:0',
-      'flex:0 0 auto',
-      layer.visible
-        ? ''
-        : 'opacity:.45'
-    ].join(';');
-
-    eye.addEventListener(
-      'click',
-      event => {
-        event.stopPropagation();
-
-        pushHistory();
-
-        layer.visible =
-          !layer.visible;
-
-        layer.base.visible =
-          layer.visible;
-
-        if (
-          layer.id ===
-          engine.selectedId
-        ) {
-          q('#visible')
-            .checked =
-            layer.visible;
-        }
-
-        renderLayers();
-
-        engine.draw();
-
-        drawSelectionOverlay();
-
-        queuePersist();
-      }
-    );
-
-    row.appendChild(
-      info
-    );
-
-    row.appendChild(
-      eye
-    );
-
-    row.addEventListener(
-      'click',
-      event => {
-        if (
-          event.ctrlKey ||
-          event.metaKey ||
-          event.shiftKey
-        ) {
-          toggleMultiLayer(
-            layer.id
-          );
-
-        } else {
-          selectSingleLayer(
-            layer.id
-          );
-        }
-      }
-    );
-
-    container.appendChild(
-      row
-    );
-  }
+drawSelectionOverlay();
 }
 
 
 /* =========================================================
-   SELECCIONAR TODAS
+   CAPAS + ROOT EN LA LISTA
+   ========================================================= */
+
+function renderLayers() {
+const container =
+q('#layers');
+
+container.innerHTML =
+'';
+
+
+/* ---------------------------------------------------------
+   ROOT
+   --------------------------------------------------------- */
+
+const rootRow =
+document.createElement(
+'div'
+);
+
+rootRow.className =
+`layer root-layer${
+rootSelected
+? ' active'
+: ''
+}`;
+
+rootRow.style.cssText +=
+'border-color:rgba(209,124,255,.35);background:rgba(110,75,184,.12);margin-bottom:8px;';
+
+
+const rootInfo =
+document.createElement(
+'div'
+);
+
+rootInfo.style.minWidth =
+'0';
+
+rootInfo.style.flex =
+'1';
+
+rootInfo.innerHTML = `
+<strong>
+◆ ${escapeHTML(
+engine.root?.name ||
+'Mikatsune Root'
+)}
+</strong>
+
+<small>
+Padre global · todas las capas heredan su transformación
+</small>
+`;
+
+
+const rootEye =
+document.createElement(
+'button'
+);
+
+rootEye.type =
+'button';
+
+rootEye.title =
+engine.root.visible
+? 'Ocultar Root'
+: 'Mostrar Root';
+
+rootEye.textContent =
+engine.root.visible
+? '👁'
+: '◉';
+
+rootEye.style.cssText =
+'width:32px;height:28px;padding:0;margin:0;flex:0 0 auto;';
+
+if (
+!engine.root.visible
+) {
+rootEye.style.opacity =
+'.45';
+}
+
+
+rootEye.addEventListener(
+'click',
+event => {
+event.stopPropagation();
+
+pushHistory();
+
+engine.root.visible =
+!engine.root.visible;
+
+engine.root.base =
+snapshotRoot();
+
+renderLayers();
+
+syncInspector();
+
+engine.draw();
+
+drawSelectionOverlay();
+
+queuePersist();
+}
+);
+
+
+rootRow.appendChild(
+rootInfo
+);
+
+rootRow.appendChild(
+rootEye
+);
+
+rootRow.addEventListener(
+'click',
+selectRoot
+);
+
+container.appendChild(
+rootRow
+);
+
+
+/* ---------------------------------------------------------
+   CAPAS HIJAS
+   --------------------------------------------------------- */
+
+const ordered =
+[
+...engine.layers
+]
+.reverse();
+
+for (
+const layer
+of ordered
+) {
+const row =
+document.createElement(
+'div'
+);
+
+const classes =
+[
+'layer'
+];
+
+if (
+layer.id ===
+engine.selectedId
+) {
+classes.push(
+'active'
+);
+}
+
+if (
+isMultiSelected(
+layer.id
+)
+) {
+classes.push(
+'multi-selected'
+);
+}
+
+row.className =
+classes.join(
+' '
+);
+
+row.style.marginLeft =
+'12px';
+
+
+const info =
+document.createElement(
+'div'
+);
+
+info.style.minWidth =
+'0';
+
+info.style.flex =
+'1';
+
+
+const identity = [
+`↳ ${layer.role || 'generic'}`,
+
+layer.group
+? `Grupo: ${layer.group}`
+: '',
+
+layer.state
+? `Estado: ${layer.state}`
+: '',
+
+layer.flipX
+? '↔ H'
+: '',
+
+layer.flipY
+? '↕ V'
+: ''
+]
+.filter(
+Boolean
+)
+.join(
+' · '
+);
+
+
+info.innerHTML = `
+<strong>
+${escapeHTML(
+layer.name ||
+'pieza'
+)}
+</strong>
+
+<small>
+${escapeHTML(
+identity
+)}
+</small>
+`;
+
+
+const eye =
+document.createElement(
+'button'
+);
+
+eye.type =
+'button';
+
+eye.title =
+layer.visible
+? 'Ocultar capa'
+: 'Mostrar capa';
+
+eye.textContent =
+layer.visible
+? '👁'
+: '◉';
+
+eye.style.cssText = [
+'width:32px',
+'height:28px',
+'padding:0',
+'margin:0',
+'flex:0 0 auto',
+layer.visible
+? ''
+: 'opacity:.45'
+]
+.join(
+';'
+);
+
+
+eye.addEventListener(
+'click',
+event => {
+event.stopPropagation();
+
+pushHistory();
+
+layer.visible =
+!layer.visible;
+
+layer.base.visible =
+layer.visible;
+
+if (
+layer.id ===
+engine.selectedId
+) {
+q('#visible')
+.checked =
+layer.visible;
+}
+
+renderLayers();
+
+engine.draw();
+
+drawSelectionOverlay();
+
+queuePersist();
+}
+);
+
+
+row.appendChild(
+info
+);
+
+row.appendChild(
+eye
+);
+
+
+row.addEventListener(
+'click',
+event => {
+if (
+event.ctrlKey ||
+event.metaKey ||
+event.shiftKey
+) {
+toggleMultiLayer(
+layer.id
+);
+
+} else {
+selectSingleLayer(
+layer.id
+);
+}
+}
+);
+
+
+container.appendChild(
+row
+);
+}
+}
+
+
+/* =========================================================
+   SELECCIONAR TODAS / VISIBILIDAD
    ========================================================= */
 
 q('#selectAllLayers')
-  .addEventListener(
-    'click',
-    () => {
-      multiSelection.clear();
+.addEventListener(
+'click',
+() => {
+rootSelected =
+false;
 
-      for (
-        const layer
-        of engine.layers
-      ) {
-        multiSelection.add(
-          layer.id
-        );
-      }
+multiSelection.clear();
 
-      engine.selectedId =
-        engine.layers
-          .at(-1)?.id ||
-        null;
+for (
+const layer
+of engine.layers
+) {
+multiSelection.add(
+layer.id
+);
+}
 
-      renderLayers();
+engine.selectedId =
+engine.layers
+.at(-1)?.id ||
+null;
 
-      syncInspector();
+renderLayers();
 
-      syncModeUI();
+syncInspector();
 
-      engine.draw();
+syncModeUI();
 
-      drawSelectionOverlay();
-    }
-  );
+engine.draw();
+
+drawSelectionOverlay();
+}
+);
 
 
 q('#clearLayerSelection')
-  .addEventListener(
-    'click',
-    () => {
-      multiSelection.clear();
+.addEventListener(
+'click',
+() => {
+rootSelected =
+false;
 
-      engine.selectedId =
-        null;
+multiSelection.clear();
 
-      renderLayers();
+engine.selectedId =
+null;
 
-      syncInspector();
+renderLayers();
 
-      renderTimelineLists();
+syncInspector();
 
-      syncModeUI();
+renderTimelineLists();
 
-      engine.draw();
-    }
-  );
+syncModeUI();
 
+engine.draw();
+}
+);
 
-/* =========================================================
-   VISIBILIDAD GLOBAL
-   ========================================================= */
 
 q('#showAllLayers')
-  .addEventListener(
-    'click',
-    () => {
-      pushHistory();
+.addEventListener(
+'click',
+() => {
+pushHistory();
 
-      for (
-        const layer
-        of engine.layers
-      ) {
-        layer.visible =
-          true;
+for (
+const layer
+of engine.layers
+) {
+layer.visible =
+true;
 
-        layer.base.visible =
-          true;
-      }
+layer.base.visible =
+true;
+}
 
-      renderLayers();
+renderLayers();
 
-      syncInspector();
+syncInspector();
 
-      engine.draw();
+engine.draw();
 
-      drawSelectionOverlay();
+drawSelectionOverlay();
 
-      queuePersist();
-    }
-  );
+queuePersist();
+}
+);
 
 
 q('#hideAllLayers')
-  .addEventListener(
-    'click',
-    () => {
-      pushHistory();
+.addEventListener(
+'click',
+() => {
+pushHistory();
 
-      for (
-        const layer
-        of engine.layers
-      ) {
-        layer.visible =
-          false;
+for (
+const layer
+of engine.layers
+) {
+layer.visible =
+false;
 
-        layer.base.visible =
-          false;
-      }
+layer.base.visible =
+false;
+}
 
-      renderLayers();
+renderLayers();
 
-      syncInspector();
+syncInspector();
 
-      engine.draw();
+engine.draw();
 
-      queuePersist();
-    }
-  );
+drawSelectionOverlay();
+
+queuePersist();
+}
+);
 
 
 /* =========================================================
-   BOTÓN MOVIMIENTO PROCEDURAL
+   CONTROLES EXTRA DEL INSPECTOR
+   ========================================================= */
+
+const inspectorPanel =
+q(
+'.inspector-panel'
+);
+
+
+const layerActions =
+document.createElement(
+'section'
+);
+
+layerActions.className =
+'inspector-section';
+
+layerActions.innerHTML = `
+<h3>Capa</h3>
+
+<div
+style="
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:6px;
+"
+>
+
+<button
+id="duplicateLayer"
+type="button"
+style="grid-column:1 / -1;"
+>
+⧉ Duplicar con animación
+</button>
+
+<button
+id="flipLayerX"
+type="button"
+>
+↔ Voltear H
+</button>
+
+<button
+id="flipLayerY"
+type="button"
+>
+↕ Voltear V
+</button>
+
+</div>
+
+<p class="hint">
+El duplicado conserva la animación,
+pero queda completamente independiente.
+</p>
+`;
+
+inspectorPanel.insertBefore(
+layerActions,
+q('#runtimeStatus')
+);
+
+
+const organicOpen =
+document.createElement(
+'button'
+);
+
+organicOpen.id =
+'openOrganic';
+
+organicOpen.type =
+'button';
+
+organicOpen.textContent =
+'⚙ Movimiento orgánico';
+
+organicOpen.style.margin =
+'8px 14px 4px';
+
+inspectorPanel.insertBefore(
+organicOpen,
+q('#runtimeStatus')
+);
+
+
+/* =========================================================
+   BOTÓN MOVIMIENTO
    ========================================================= */
 
 function layerMotionIsActive(
-  layer
+layer
 ) {
-  if (!layer) {
-    return false;
-  }
+if (!layer) {
+return false;
+}
 
-  const organicActive =
-    Boolean(
-      layer.organic
-        ?.enabled
-    );
+const organicActive =
+Boolean(
+layer.organic
+?.enabled
+);
 
-  const breathing =
-    animator.getBreathingConfig(
-      layer
-    );
+const breathing =
+animator.getBreathingConfig(
+layer
+);
 
-  const breathingActive =
-    breathing?.enabled !==
-    false;
+const breathingActive =
+breathing?.enabled !==
+false;
 
-  return (
-    organicActive ||
-    breathingActive
-  );
+return (
+organicActive ||
+breathingActive
+);
 }
 
 
 function syncLayerMotionButton() {
-  const button =
-    q('#disableLayerMotion');
+const button =
+q(
+'#disableLayerMotion'
+);
 
-  if (!button) {
-    return;
-  }
+if (!button) {
+return;
+}
 
-  const layer =
-    engine.selected;
 
-  if (!layer) {
-    button.disabled =
-      true;
+if (rootSelected) {
+button.disabled =
+true;
 
-    button.textContent =
-      '▶ Activar movimiento';
+button.textContent =
+'Root · movimiento local no aplica';
 
-    button.title =
-      'Selecciona una capa primero';
+button.title =
+'El Root tendrá su propia pista de animación.';
 
-    return;
-  }
+return;
+}
 
-  button.disabled =
-    false;
 
-  const active =
-    layerMotionIsActive(
-      layer
-    );
+const layer =
+engine.selected;
 
-  button.textContent =
-    active
-      ? '⏸ Desactivar movimiento'
-      : '▶ Activar movimiento';
+if (!layer) {
+button.disabled =
+true;
 
-  button.title =
-    active
-      ? 'Apagar respiración y tics sin borrar su configuración'
-      : 'Volver a activar respiración y tics conservando su configuración';
+button.textContent =
+'▶ Activar movimiento';
+
+button.title =
+'Selecciona una capa primero';
+
+return;
+}
+
+
+button.disabled =
+false;
+
+const active =
+layerMotionIsActive(
+layer
+);
+
+button.textContent =
+active
+? '⏸ Desactivar movimiento'
+: '▶ Activar movimiento';
+
+button.title =
+active
+? 'Apagar respiración y tics sin borrar su configuración'
+: 'Volver a activar respiración y tics conservando su configuración';
 }
 
 
@@ -1210,634 +1688,985 @@ function syncLayerMotionButton() {
    ========================================================= */
 
 const inspectorTextIds = [
-  'name',
-  'group',
-  'state',
-  'x',
-  'y',
-  'scale',
-  'rotation',
-  'pivotX',
-  'pivotY'
+'name',
+'group',
+'state',
+'x',
+'y',
+'scale',
+'rotation',
+'pivotX',
+'pivotY'
 ];
 
 
+function setLayerOnlyControlsDisabled(
+disabled
+) {
+q('#role').disabled =
+disabled;
+
+q('#group').disabled =
+disabled;
+
+q('#state').disabled =
+disabled;
+
+q('#activateState').disabled =
+disabled;
+
+q('#organicEnabled').disabled =
+disabled;
+
+q('#organicMin').disabled =
+disabled;
+
+q('#organicMax').disabled =
+disabled;
+
+q('#organicAmount').disabled =
+disabled;
+
+q('#organicDuration').disabled =
+disabled;
+
+q('#organicDouble').disabled =
+disabled;
+
+q('#openOrganic').disabled =
+disabled;
+
+q('#duplicateLayer').disabled =
+disabled;
+
+q('#flipLayerX').disabled =
+disabled;
+
+q('#flipLayerY').disabled =
+disabled;
+}
+
+
 function syncInspector() {
-  const layer =
-    engine.selected;
+if (rootSelected) {
+const root =
+engine.root;
 
-  if (!layer) {
-    for (
-      const id
-      of inspectorTextIds
-    ) {
-      q(`#${id}`)
-        .value =
-        '';
-    }
+q('#name').value =
+root.name ||
+'Mikatsune Root';
 
-    q('#role').value =
-      'generic';
+q('#role').value =
+'generic';
 
-    q('#visible').checked =
-      false;
+q('#group').value =
+'';
 
-    q('#organicEnabled')
-      .checked =
-      false;
+q('#state').value =
+'';
 
-    q('#organicMin').value =
-      2;
+q('#visible').checked =
+root.visible !==
+false;
 
-    q('#organicMax').value =
-      3.5;
+q('#x').value =
+Number(
+root.x
+)
+.toFixed(
+2
+);
 
-    q('#organicAmount').value =
-      2;
+q('#y').value =
+Number(
+root.y
+)
+.toFixed(
+2
+);
 
-    q('#organicDuration').value =
-      0.28;
+q('#scale').value =
+Number(
+root.scale
+)
+.toFixed(
+4
+);
 
-    q('#organicDouble').value =
-      20;
+q('#rotation').value =
+Number(
+root.rotation
+)
+.toFixed(
+2
+);
 
-    syncLayerMotionButton();
+q('#pivotX').value =
+Number(
+root.pivotX
+)
+.toFixed(
+2
+);
 
-    return;
-  }
+q('#pivotY').value =
+Number(
+root.pivotY
+)
+.toFixed(
+2
+);
 
-  const pose =
-    getEffectivePose(
-      layer
-    );
+q('#organicEnabled')
+.checked =
+false;
 
-  q('#name').value =
-    layer.name ||
-    '';
+q('#organicMin').value =
+2;
 
-  q('#role').value =
-    layer.role ||
-    'generic';
+q('#organicMax').value =
+3.5;
 
-  q('#group').value =
-    layer.group ||
-    '';
+q('#organicAmount').value =
+2;
 
-  q('#state').value =
-    layer.state ||
-    '';
+q('#organicDuration').value =
+0.28;
 
-  q('#visible').checked =
-    layer.visible !==
-    false;
+q('#organicDouble').value =
+20;
 
-  q('#x').value =
-    Number(
-      pose.x
-    ).toFixed(2);
+setLayerOnlyControlsDisabled(
+true
+);
 
-  q('#y').value =
-    Number(
-      pose.y
-    ).toFixed(2);
+syncLayerMotionButton();
 
-  q('#scale').value =
-    Number(
-      pose.scale
-    ).toFixed(4);
+return;
+}
 
-  q('#rotation').value =
-    Number(
-      pose.rotation
-    ).toFixed(2);
 
-  q('#pivotX').value =
-    Number(
-      pose.pivotX
-    ).toFixed(2);
+setLayerOnlyControlsDisabled(
+false
+);
 
-  q('#pivotY').value =
-    Number(
-      pose.pivotY
-    ).toFixed(2);
+const layer =
+engine.selected;
 
-  const organic =
-    layer.organic ||
-    {};
+if (!layer) {
+for (
+const id
+of inspectorTextIds
+) {
+q(`#${id}`)
+.value =
+'';
+}
 
-  q('#organicEnabled')
-    .checked =
-    Boolean(
-      organic.enabled
-    );
+q('#role').value =
+'generic';
 
-  q('#organicMin').value =
-    organic.minInterval ??
-    2;
+q('#visible').checked =
+false;
 
-  q('#organicMax').value =
-    organic.maxInterval ??
-    3.5;
+q('#organicEnabled')
+.checked =
+false;
 
-  q('#organicAmount').value =
-    organic.amount ??
-    2;
+q('#organicMin').value =
+2;
 
-  q('#organicDuration').value =
-    organic.duration ??
-    0.28;
+q('#organicMax').value =
+3.5;
 
-  q('#organicDouble').value =
-    Math.round(
-      (
-        organic.doubleChance ??
-        0.2
-      ) *
-      100
-    );
+q('#organicAmount').value =
+2;
 
-  syncLayerMotionButton();
+q('#organicDuration').value =
+0.28;
+
+q('#organicDouble').value =
+20;
+
+syncLayerMotionButton();
+
+return;
+}
+
+
+const pose =
+getEffectivePose(
+layer
+);
+
+
+q('#name').value =
+layer.name ||
+'';
+
+q('#role').value =
+layer.role ||
+'generic';
+
+q('#group').value =
+layer.group ||
+'';
+
+q('#state').value =
+layer.state ||
+'';
+
+q('#visible').checked =
+layer.visible !==
+false;
+
+q('#x').value =
+Number(
+pose.x
+)
+.toFixed(
+2
+);
+
+q('#y').value =
+Number(
+pose.y
+)
+.toFixed(
+2
+);
+
+q('#scale').value =
+Number(
+pose.scale
+)
+.toFixed(
+4
+);
+
+q('#rotation').value =
+Number(
+pose.rotation
+)
+.toFixed(
+2
+);
+
+q('#pivotX').value =
+Number(
+pose.pivotX
+)
+.toFixed(
+2
+);
+
+q('#pivotY').value =
+Number(
+pose.pivotY
+)
+.toFixed(
+2
+);
+
+
+const organic =
+layer.organic ||
+{};
+
+q('#organicEnabled')
+.checked =
+Boolean(
+organic.enabled
+);
+
+q('#organicMin').value =
+organic.minInterval ??
+2;
+
+q('#organicMax').value =
+organic.maxInterval ??
+3.5;
+
+q('#organicAmount').value =
+organic.amount ??
+2;
+
+q('#organicDuration').value =
+organic.duration ??
+0.28;
+
+q('#organicDouble').value =
+Math.round(
+(
+organic.doubleChance ??
+0.2
+) *
+100
+);
+
+syncLayerMotionButton();
 }
 
 
 /* =========================================================
-   INSPECTOR · TRANSFORMACIÓN
+   ROOT · TRANSFORMACIÓN DE DISEÑO
+   ========================================================= */
+
+function markRootChanged() {
+engine.root.base =
+snapshotRoot();
+
+timelinePreviewActive =
+false;
+
+engine.resetRuntime();
+
+engine.draw();
+
+drawSelectionOverlay();
+
+queuePersist();
+}
+
+
+function updateRootDesignTransform(
+property,
+value
+) {
+if (!rootSelected) {
+return;
+}
+
+if (
+editorMode !==
+'design'
+) {
+setEditorMode(
+'design'
+);
+}
+
+if (
+property ===
+'scale'
+) {
+value =
+Math.max(
+0.02,
+value
+);
+}
+
+engine.root[
+property
+] =
+value;
+
+markRootChanged();
+}
+
+
+function applyRootPivotFromStart(
+startRoot,
+newPivotX,
+newPivotY
+) {
+const dx =
+newPivotX -
+startRoot.pivotX;
+
+const dy =
+newPivotY -
+startRoot.pivotY;
+
+const scale =
+Number(
+startRoot.scale
+) ||
+1;
+
+const sx =
+dx *
+scale;
+
+const sy =
+dy *
+scale;
+
+const angle =
+Number(
+startRoot.rotation ||
+0
+) *
+Math.PI /
+180;
+
+const cos =
+Math.cos(
+angle
+);
+
+const sin =
+Math.sin(
+angle
+);
+
+engine.root.x =
+startRoot.x +
+sx * cos -
+sy * sin;
+
+engine.root.y =
+startRoot.y +
+sx * sin +
+sy * cos;
+
+engine.root.pivotX =
+newPivotX;
+
+engine.root.pivotY =
+newPivotY;
+
+engine.root.base =
+snapshotRoot();
+}
+
+
+/* =========================================================
+   CAPA · TRANSFORMACIÓN
    ========================================================= */
 
 function updateDesignTransform(
-  layer,
-  property,
-  newValue
+layer,
+property,
+newValue
 ) {
-  if (!layer) {
-    return;
-  }
+if (!layer) {
+return;
+}
 
-  const oldValue =
-    Number(
-      layer[property]
-    );
+const oldValue =
+Number(
+layer[
+property
+]
+);
 
-  if (
-    property === 'x'
-  ) {
-    const delta =
-      newValue -
-      oldValue;
+if (
+property ===
+'x'
+) {
+const delta =
+newValue -
+oldValue;
 
-    layer.x =
-      newValue;
+layer.x =
+newValue;
 
-    shiftLayerFrames(
-      layer.id,
-      delta,
-      0
-    );
+shiftLayerFrames(
+layer.id,
+delta,
+0
+);
 
-  } else if (
-    property === 'y'
-  ) {
-    const delta =
-      newValue -
-      oldValue;
+} else if (
+property ===
+'y'
+) {
+const delta =
+newValue -
+oldValue;
 
-    layer.y =
-      newValue;
+layer.y =
+newValue;
 
-    shiftLayerFrames(
-      layer.id,
-      0,
-      delta
-    );
+shiftLayerFrames(
+layer.id,
+0,
+delta
+);
 
-  } else if (
-    property === 'scale'
-  ) {
-    const safeOld =
-      Math.max(
-        0.0001,
-        Math.abs(
-          oldValue
-        )
-      );
+} else if (
+property ===
+'scale'
+) {
+const safeOld =
+Math.max(
+0.0001,
+Math.abs(
+oldValue
+)
+);
 
-    const factor =
-      newValue /
-      safeOld;
+const factor =
+newValue /
+safeOld;
 
-    layer.scale =
-      newValue;
+layer.scale =
+newValue;
 
-    scaleLayerFrames(
-      layer.id,
-      factor
-    );
+scaleLayerFrames(
+layer.id,
+factor
+);
 
-    if (
-      layer.breathing
-    ) {
-      layer.breathing.y =
-        Number(
-          layer.breathing.y ||
-          0
-        ) *
-        factor;
-    }
+if (
+layer.breathing
+) {
+layer.breathing.y =
+Number(
+layer.breathing.y ||
+0
+) *
+factor;
+}
 
-  } else if (
-    property ===
-    'rotation'
-  ) {
-    const delta =
-      newValue -
-      oldValue;
+} else if (
+property ===
+'rotation'
+) {
+const delta =
+newValue -
+oldValue;
 
-    layer.rotation =
-      newValue;
+layer.rotation =
+newValue;
 
-    rotateLayerFrames(
-      layer.id,
-      delta
-    );
-  }
+rotateLayerFrames(
+layer.id,
+delta
+);
+}
 
-  layer.base =
-    engine.snapshot(
-      layer
-    );
+layer.base =
+engine.snapshot(
+layer
+);
 
-  timelinePreviewActive =
-    false;
+timelinePreviewActive =
+false;
 
-  engine.resetRuntime();
+engine.resetRuntime();
 
-  engine.draw();
+engine.draw();
 
-  drawSelectionOverlay();
+drawSelectionOverlay();
 
-  queuePersist();
+queuePersist();
 }
 
 
 function updateAnimationTransform(
-  layer,
-  property,
-  newValue
+layer,
+property,
+newValue
 ) {
-  if (!layer) {
-    return;
-  }
-
-  animator.pause();
-
-  timelinePreviewActive =
-    true;
-
-  animator.evaluate(
-    animator.currentTime,
-    false
-  );
-
-  const pose =
-    getEffectivePose(
-      layer
-    );
-
-  pose[property] =
-    newValue;
-
-  writePoseKeyframe(
-    layer,
-    pose,
-    animator.currentTime
-  );
-
-  animator.seek(
-    animator.currentTime
-  );
-
-  renderTimelineLists();
-
-  engine.draw();
-
-  drawSelectionOverlay();
-
-  queuePersist();
+if (!layer) {
+return;
 }
 
+animator.pause();
 
-for (
-  const property
-  of [
-    'x',
-    'y',
-    'scale',
-    'rotation'
-  ]
-) {
-  const input =
-    q(`#${property}`);
+timelinePreviewActive =
+true;
 
-  input.addEventListener(
-    'focus',
-    () => {
-      pushHistory();
-    }
-  );
+animator.evaluate(
+animator.currentTime,
+false
+);
 
-  input.addEventListener(
-    'input',
-    event => {
-      const layer =
-        engine.selected;
+const pose =
+getEffectivePose(
+layer
+);
 
-      if (!layer) {
-        return;
-      }
+pose[
+property
+] =
+newValue;
 
-      let value =
-        Number(
-          event.target.value
-        );
+writePoseKeyframe(
+layer,
+pose,
+animator.currentTime
+);
 
-      if (
-        property ===
-        'scale'
-      ) {
-        value =
-          Math.max(
-            0.02,
-            value
-          );
-      }
+animator.seek(
+animator.currentTime
+);
 
-      if (
-        editorMode ===
-        'design'
-      ) {
-        updateDesignTransform(
-          layer,
-          property,
-          value
-        );
+renderTimelineLists();
 
-      } else {
-        updateAnimationTransform(
-          layer,
-          property,
-          value
-        );
-      }
-    }
-  );
+engine.draw();
+
+drawSelectionOverlay();
+
+queuePersist();
 }
 
 
 /* =========================================================
-   PIVOTE
+   INPUTS DE TRANSFORMACIÓN
    ========================================================= */
 
-function changePivotKeepingVisual(
-  layer,
-  newPivotX,
-  newPivotY
+for (
+const property
+of [
+'x',
+'y',
+'scale',
+'rotation'
+]
 ) {
-  const oldPivotX =
-    layer.pivotX;
+const input =
+q(
+`#${property}`
+);
 
-  const oldPivotY =
-    layer.pivotY;
+input.addEventListener(
+'focus',
+() => {
+pushHistory();
+}
+);
 
-  const dx =
-    newPivotX -
-    oldPivotX;
+input.addEventListener(
+'input',
+event => {
+let value =
+Number(
+event.target.value
+);
 
-  const dy =
-    newPivotY -
-    oldPivotY;
+if (
+property ===
+'scale'
+) {
+value =
+Math.max(
+0.02,
+value
+);
+}
 
-  const scaleX =
-    layer.scale *
-    (
-      layer.flipX
-        ? -1
-        : 1
-    );
+if (rootSelected) {
+updateRootDesignTransform(
+property,
+value
+);
 
-  const scaleY =
-    layer.scale *
-    (
-      layer.flipY
-        ? -1
-        : 1
-    );
+return;
+}
 
-  const localDX =
-    dx *
-    scaleX;
+const layer =
+engine.selected;
 
-  const localDY =
-    dy *
-    scaleY;
+if (!layer) {
+return;
+}
 
-  const angle =
-    layer.rotation *
-    Math.PI /
-    180;
+if (
+editorMode ===
+'design'
+) {
+updateDesignTransform(
+layer,
+property,
+value
+);
 
-  const cos =
-    Math.cos(
-      angle
-    );
-
-  const sin =
-    Math.sin(
-      angle
-    );
-
-  layer.x +=
-    localDX *
-    cos -
-    localDY *
-    sin;
-
-  layer.y +=
-    localDX *
-    sin +
-    localDY *
-    cos;
-
-  layer.pivotX =
-    newPivotX;
-
-  layer.pivotY =
-    newPivotY;
-
-  const frames =
-    getLayerFrames(
-      layer.id
-    );
-
-  for (
-    const frame
-    of frames
-  ) {
-    const frameScale =
-      Number(
-        frame.scale ??
-        layer.scale
-      );
-
-    const frameRotation =
-      Number(
-        frame.rotation ??
-        layer.rotation
-      );
-
-    const sx =
-      frameScale *
-      (
-        layer.flipX
-          ? -1
-          : 1
-      );
-
-    const sy =
-      frameScale *
-      (
-        layer.flipY
-          ? -1
-          : 1
-      );
-
-    const fdx =
-      dx *
-      sx;
-
-    const fdy =
-      dy *
-      sy;
-
-    const a =
-      frameRotation *
-      Math.PI /
-      180;
-
-    const fc =
-      Math.cos(a);
-
-    const fs =
-      Math.sin(a);
-
-    if (
-      frame.x !==
-      undefined
-    ) {
-      frame.x =
-        Number(
-          frame.x
-        ) +
-        fdx *
-        fc -
-        fdy *
-        fs;
-    }
-
-    if (
-      frame.y !==
-      undefined
-    ) {
-      frame.y =
-        Number(
-          frame.y
-        ) +
-        fdx *
-        fs +
-        fdy *
-        fc;
-    }
-
-    frame.pivotX =
-      Number(
-        frame.pivotX ??
-        oldPivotX
-      ) +
-      dx;
-
-    frame.pivotY =
-      Number(
-        frame.pivotY ??
-        oldPivotY
-      ) +
-      dy;
-  }
-
-  layer.base =
-    engine.snapshot(
-      layer
-    );
-
-  engine.resetRuntime();
-
-  timelinePreviewActive =
-    false;
-
-  engine.draw();
-
-  drawSelectionOverlay();
-
-  queuePersist();
+} else {
+updateAnimationTransform(
+layer,
+property,
+value
+);
+}
+}
+);
 }
 
 
-for (
-  const property
-  of [
-    'pivotX',
-    'pivotY'
-  ]
+/* =========================================================
+   PIVOTE DE CAPA
+   ========================================================= */
+
+function changeLayerPivotKeepingVisual(
+layer,
+newPivotX,
+newPivotY
 ) {
-  q(`#${property}`)
-    .addEventListener(
-      'focus',
-      () => {
-        pushHistory();
-      }
-    );
+const oldPivotX =
+layer.pivotX;
 
-  q(`#${property}`)
-    .addEventListener(
-      'input',
-      event => {
-        const layer =
-          engine.selected;
+const oldPivotY =
+layer.pivotY;
 
-        if (!layer) {
-          return;
-        }
+const dx =
+newPivotX -
+oldPivotX;
 
-        const value =
-          Number(
-            event.target.value
-          );
+const dy =
+newPivotY -
+oldPivotY;
 
-        changePivotKeepingVisual(
-          layer,
+const scaleX =
+layer.scale *
+(
+layer.flipX
+? -1
+: 1
+);
 
-          property ===
-          'pivotX'
-            ? value
-            : layer.pivotX,
+const scaleY =
+layer.scale *
+(
+layer.flipY
+? -1
+: 1
+);
 
-          property ===
-          'pivotY'
-            ? value
-            : layer.pivotY
-        );
+const localDX =
+dx *
+scaleX;
 
-        syncInspector();
-      }
-    );
+const localDY =
+dy *
+scaleY;
+
+const angle =
+layer.rotation *
+Math.PI /
+180;
+
+const cos =
+Math.cos(
+angle
+);
+
+const sin =
+Math.sin(
+angle
+);
+
+layer.x +=
+localDX * cos -
+localDY * sin;
+
+layer.y +=
+localDX * sin +
+localDY * cos;
+
+layer.pivotX =
+newPivotX;
+
+layer.pivotY =
+newPivotY;
+
+
+const frames =
+getLayerFrames(
+layer.id
+);
+
+for (
+const frame
+of frames
+) {
+const frameScale =
+Number(
+frame.scale ??
+layer.scale
+);
+
+const frameRotation =
+Number(
+frame.rotation ??
+layer.rotation
+);
+
+const sx =
+frameScale *
+(
+layer.flipX
+? -1
+: 1
+);
+
+const sy =
+frameScale *
+(
+layer.flipY
+? -1
+: 1
+);
+
+const fdx =
+dx *
+sx;
+
+const fdy =
+dy *
+sy;
+
+const a =
+frameRotation *
+Math.PI /
+180;
+
+const fc =
+Math.cos(
+a
+);
+
+const fs =
+Math.sin(
+a
+);
+
+
+if (
+frame.x !==
+undefined
+) {
+frame.x =
+Number(
+frame.x
+) +
+fdx * fc -
+fdy * fs;
+}
+
+
+if (
+frame.y !==
+undefined
+) {
+frame.y =
+Number(
+frame.y
+) +
+fdx * fs +
+fdy * fc;
+}
+
+
+frame.pivotX =
+Number(
+frame.pivotX ??
+oldPivotX
+) +
+dx;
+
+
+frame.pivotY =
+Number(
+frame.pivotY ??
+oldPivotY
+) +
+dy;
+}
+
+
+layer.base =
+engine.snapshot(
+layer
+);
+
+engine.resetRuntime();
+
+timelinePreviewActive =
+false;
+
+engine.draw();
+
+drawSelectionOverlay();
+
+queuePersist();
+}
+
+
+/* =========================================================
+   INPUTS PIVOTE
+   ========================================================= */
+
+for (
+const property
+of [
+'pivotX',
+'pivotY'
+]
+) {
+q(`#${property}`)
+.addEventListener(
+'focus',
+() => {
+pushHistory();
+}
+);
+
+
+q(`#${property}`)
+.addEventListener(
+'input',
+event => {
+const value =
+Number(
+event.target.value
+);
+
+
+if (rootSelected) {
+const start =
+snapshotRoot();
+
+applyRootPivotFromStart(
+start,
+
+property ===
+'pivotX'
+? value
+: start.pivotX,
+
+property ===
+'pivotY'
+? value
+: start.pivotY
+);
+
+markRootChanged();
+
+syncInspector();
+
+return;
+}
+
+
+const layer =
+engine.selected;
+
+if (!layer) {
+return;
+}
+
+
+changeLayerPivotKeepingVisual(
+layer,
+
+property ===
+'pivotX'
+? value
+: layer.pivotX,
+
+property ===
+'pivotY'
+? value
+: layer.pivotY
+);
+
+syncInspector();
+}
+);
 }
 
 
@@ -1846,143 +2675,185 @@ for (
    ========================================================= */
 
 q('#name')
-  .addEventListener(
-    'input',
-    event => {
-      const layer =
-        engine.selected;
+.addEventListener(
+'input',
+event => {
+if (rootSelected) {
+engine.root.name =
+event.target.value
+.trimStart() ||
+'Mikatsune Root';
 
-      if (!layer) {
-        return;
-      }
+renderLayers();
 
-      layer.name =
-        event.target.value
-          .trimStart() ||
-        'pieza';
+queuePersist();
 
-      renderLayers();
+return;
+}
 
-      queuePersist();
-    }
-  );
+const layer =
+engine.selected;
+
+if (!layer) {
+return;
+}
+
+layer.name =
+event.target.value
+.trimStart() ||
+'pieza';
+
+renderLayers();
+
+queuePersist();
+}
+);
 
 
 q('#role')
-  .addEventListener(
-    'change',
-    event => {
-      const layer =
-        engine.selected;
+.addEventListener(
+'change',
+event => {
+if (rootSelected) {
+return;
+}
 
-      if (!layer) {
-        return;
-      }
+const layer =
+engine.selected;
 
-      pushHistory();
+if (!layer) {
+return;
+}
 
-      layer.role =
-        event.target.value;
+pushHistory();
 
-      if (
-        (
-          layer.role ===
-          'earL' ||
-          layer.role ===
-          'earR'
-        ) &&
-        !layer.organic
-          ?.enabled
-      ) {
-        layer.organic = {
-          enabled:
-            true,
+layer.role =
+event.target.value;
 
-          minInterval:
-            2,
+if (
+(
+layer.role ===
+'earL' ||
+layer.role ===
+'earR'
+) &&
+!layer.organic
+?.enabled
+) {
+layer.organic = {
+enabled:
+true,
 
-          maxInterval:
-            3.5,
+minInterval:
+2,
 
-          amount:
-            2.2,
+maxInterval:
+3.5,
 
-          duration:
-            0.28,
+amount:
+2.2,
 
-          doubleChance:
-            0.28
-        };
-      }
+duration:
+0.28,
 
-      renderLayers();
+doubleChance:
+0.28
+};
+}
 
-      syncInspector();
+renderLayers();
 
-      queuePersist();
-    }
-  );
+syncInspector();
+
+queuePersist();
+}
+);
 
 
 for (
-  const id
-  of [
-    'group',
-    'state'
-  ]
+const id
+of [
+'group',
+'state'
+]
 ) {
-  q(`#${id}`)
-    .addEventListener(
-      'input',
-      event => {
-        const layer =
-          engine.selected;
+q(`#${id}`)
+.addEventListener(
+'input',
+event => {
+if (rootSelected) {
+return;
+}
 
-        if (!layer) {
-          return;
-        }
+const layer =
+engine.selected;
 
-        layer[id] =
-          event.target.value;
+if (!layer) {
+return;
+}
 
-        renderLayers();
+layer[
+id
+] =
+event.target.value;
 
-        renderTimelineLists();
+renderLayers();
 
-        queuePersist();
-      }
-    );
+renderTimelineLists();
+
+queuePersist();
+}
+);
 }
 
 
 q('#visible')
-  .addEventListener(
-    'change',
-    event => {
-      const layer =
-        engine.selected;
+.addEventListener(
+'change',
+event => {
+pushHistory();
 
-      if (!layer) {
-        return;
-      }
+if (rootSelected) {
+engine.root.visible =
+event.target.checked;
 
-      pushHistory();
+engine.root.base =
+snapshotRoot();
 
-      layer.visible =
-        event.target.checked;
+renderLayers();
 
-      layer.base.visible =
-        layer.visible;
+engine.draw();
 
-      renderLayers();
+drawSelectionOverlay();
 
-      engine.draw();
+queuePersist();
 
-      drawSelectionOverlay();
+return;
+}
 
-      queuePersist();
-    }
-  );
+
+const layer =
+engine.selected;
+
+if (!layer) {
+return;
+}
+
+layer.visible =
+event.target.checked;
+
+layer.base.visible =
+layer.visible;
+
+renderLayers();
+
+engine.draw();
+
+drawSelectionOverlay();
+
+queuePersist();
+}
+);
 
 
 /* =========================================================
@@ -1990,400 +2861,351 @@ q('#visible')
    ========================================================= */
 
 q('#activateState')
-  .addEventListener(
-    'click',
-    () => {
-      const layer =
-        engine.selected;
+.addEventListener(
+'click',
+() => {
+if (rootSelected) {
+return;
+}
 
-      if (
-        !layer?.group
-          ?.trim() ||
-        !layer.state
-          ?.trim()
-      ) {
-        alert(
-          'Esta capa necesita Grupo y Estado. Ejemplo: Grupo “Ojos”, Estado “Cerrado”.'
-        );
+const layer =
+engine.selected;
 
-        return;
-      }
+if (
+!layer?.group
+?.trim() ||
+!layer.state
+?.trim()
+) {
+alert(
+'Esta capa necesita Grupo y Estado. Ejemplo: Grupo “Ojos”, Estado “Cerrado”.'
+);
 
-      pushHistory();
+return;
+}
 
-      const group =
-        layer.group.trim();
+pushHistory();
 
-      const state =
-        layer.state.trim();
+const group =
+layer.group.trim();
 
-      for (
-        const item
-        of engine.layers
-      ) {
-        if (
-          item.group
-            ?.trim() !==
-            group ||
-          !item.state
-            ?.trim()
-        ) {
-          continue;
-        }
+const state =
+layer.state.trim();
 
-        item.visible =
-          item.state
-            .trim() ===
-          state;
+for (
+const item
+of engine.layers
+) {
+if (
+item.group
+?.trim() !==
+group ||
+!item.state
+?.trim()
+) {
+continue;
+}
 
-        item.base.visible =
-          item.visible;
-      }
+item.visible =
+item.state
+.trim() ===
+state;
 
-      animator.manualStates
-        .set(
-          group,
-          state
-        );
+item.base.visible =
+item.visible;
+}
 
-      renderLayers();
+animator.manualStates
+.set(
+group,
+state
+);
 
-      engine.draw();
+renderLayers();
 
-      drawSelectionOverlay();
+engine.draw();
 
-      queuePersist();
-    }
-  );
+drawSelectionOverlay();
 
-
-/* =========================================================
-   CAPA:
-   DUPLICAR / FLIP
-   ========================================================= */
-
-const layerActions =
-  document.createElement(
-    'section'
-  );
-
-layerActions.className =
-  'inspector-section';
-
-layerActions.innerHTML = `
-  <h3>Capa</h3>
-
-  <div
-    style="
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:6px;
-    "
-  >
-
-    <button
-      id="duplicateLayer"
-      type="button"
-      style="grid-column:1 / -1;"
-    >
-      ⧉ Duplicar con animación
-    </button>
-
-    <button
-      id="flipLayerX"
-      type="button"
-    >
-      ↔ Voltear H
-    </button>
-
-    <button
-      id="flipLayerY"
-      type="button"
-    >
-      ↕ Voltear V
-    </button>
-
-  </div>
-
-  <p class="hint">
-    El duplicado conserva la animación,
-    pero queda completamente independiente.
-  </p>
-`;
-
-const inspectorPanel =
-  q('.inspector-panel');
-
-inspectorPanel.insertBefore(
-  layerActions,
-  q('#runtimeStatus')
+queuePersist();
+}
 );
 
 
 /* =========================================================
-   DUPLICAR ANIMACIÓN
+   DUPLICAR / FLIP
    ========================================================= */
 
 function cloneLayerAnimation(
-  sourceLayer,
-  targetLayer,
-  offsetX = 0,
-  offsetY = 0
+sourceLayer,
+targetLayer,
+offsetX = 0,
+offsetY = 0
 ) {
-  const sourceFrames =
-    cloneLayerFrames(
-      sourceLayer.id
-    );
+const sourceFrames =
+cloneLayerFrames(
+sourceLayer.id
+);
 
-  if (
-    !sourceFrames.length
-  ) {
-    return;
-  }
+if (
+!sourceFrames.length
+) {
+return;
+}
 
-  const cloned =
-    sourceFrames.map(
-      frame => ({
-        ...frame,
+const cloned =
+sourceFrames.map(
+frame => ({
+...frame,
 
-        id:
-          crypto.randomUUID(),
+id:
+crypto.randomUUID(),
 
-        x:
-          frame.x !==
-          undefined
-            ? Number(
-                frame.x
-              ) +
-              offsetX
-            : frame.x,
+x:
+frame.x !==
+undefined
+? Number(
+frame.x
+) +
+offsetX
+: frame.x,
 
-        y:
-          frame.y !==
-          undefined
-            ? Number(
-                frame.y
-              ) +
-              offsetY
-            : frame.y
-      })
-    );
+y:
+frame.y !==
+undefined
+? Number(
+frame.y
+) +
+offsetY
+: frame.y
+})
+);
 
-  replaceLayerFrames(
-    targetLayer.id,
-    cloned
-  );
+replaceLayerFrames(
+targetLayer.id,
+cloned
+);
 }
 
 
-/* =========================================================
-   DUPLICAR CAPA
-   ========================================================= */
-
 function duplicateSelectedLayer() {
-  const source =
-    engine.selected;
+if (rootSelected) {
+return;
+}
 
-  if (!source) {
-    alert(
-      'Selecciona una capa primero.'
-    );
+const source =
+engine.selected;
 
-    return;
-  }
+if (!source) {
+alert(
+'Selecciona una capa primero.'
+);
 
-  pushHistory();
+return;
+}
 
-  const offsetX =
-    24;
+pushHistory();
 
-  const offsetY =
-    24;
+const offsetX =
+24;
 
-  const duplicate =
-    engine.addLayer({
-      name:
-        `${source.name} copia`,
+const offsetY =
+24;
 
-      role:
-        source.role,
 
-      group:
-        source.group,
+const duplicate =
+engine.addLayer({
+name:
+`${source.name} copia`,
 
-      state:
-        source.state,
+role:
+source.role,
 
-      src:
-        source.src,
+group:
+source.group,
 
-      image:
-        source.image,
+state:
+source.state,
 
-      x:
-        source.x +
-        offsetX,
+src:
+source.src,
 
-      y:
-        source.y +
-        offsetY,
+image:
+source.image,
 
-      scale:
-        source.scale,
+x:
+source.x +
+offsetX,
 
-      rotation:
-        source.rotation,
+y:
+source.y +
+offsetY,
 
-      opacity:
-        source.opacity,
+scale:
+source.scale,
 
-      pivotX:
-        source.pivotX,
+rotation:
+source.rotation,
 
-      pivotY:
-        source.pivotY,
+opacity:
+source.opacity,
 
-      flipX:
-        source.flipX,
+pivotX:
+source.pivotX,
 
-      flipY:
-        source.flipY,
+pivotY:
+source.pivotY,
 
-      visible:
-        source.visible,
+flipX:
+source.flipX,
 
-      organic:
-        clonePlain(
-          source.organic
-        ),
+flipY:
+source.flipY,
 
-      breathing:
-        clonePlain(
-          source.breathing
-        )
-    });
+visible:
+source.visible,
 
-  cloneLayerAnimation(
-    source,
-    duplicate,
-    offsetX,
-    offsetY
-  );
+organic:
+clonePlain(
+source.organic
+),
 
-  duplicate.base =
-    engine.snapshot(
-      duplicate
-    );
+breathing:
+clonePlain(
+source.breathing
+)
+});
 
-  animator.resetOrganic();
 
-  multiSelection.clear();
+cloneLayerAnimation(
+source,
+duplicate,
+offsetX,
+offsetY
+);
 
-  engine.selectedId =
-    duplicate.id;
 
-  timelinePreviewActive =
-    false;
+duplicate.base =
+engine.snapshot(
+duplicate
+);
 
-  renderLayers();
+animator.resetOrganic();
 
-  syncInspector();
+rootSelected =
+false;
 
-  renderTimelineLists();
+multiSelection.clear();
 
-  engine.resetRuntime();
+engine.selectedId =
+duplicate.id;
 
-  engine.draw();
+timelinePreviewActive =
+false;
 
-  drawSelectionOverlay();
+renderLayers();
 
-  queuePersist();
+syncInspector();
+
+renderTimelineLists();
+
+engine.resetRuntime();
+
+engine.draw();
+
+drawSelectionOverlay();
+
+queuePersist();
 }
 
 
 q('#duplicateLayer')
-  .addEventListener(
-    'click',
-    duplicateSelectedLayer
-  );
+.addEventListener(
+'click',
+duplicateSelectedLayer
+);
 
-
-/* =========================================================
-   FLIP
-   ========================================================= */
 
 q('#flipLayerX')
-  .addEventListener(
-    'click',
-    () => {
-      const layer =
-        engine.selected;
+.addEventListener(
+'click',
+() => {
+if (rootSelected) {
+return;
+}
 
-      if (!layer) {
-        return;
-      }
+const layer =
+engine.selected;
 
-      pushHistory();
+if (!layer) {
+return;
+}
 
-      layer.flipX =
-        !layer.flipX;
+pushHistory();
 
-      layer.base =
-        engine.snapshot(
-          layer
-        );
+layer.flipX =
+!layer.flipX;
 
-      engine.resetRuntime();
+layer.base =
+engine.snapshot(
+layer
+);
 
-      timelinePreviewActive =
-        false;
+engine.resetRuntime();
 
-      renderLayers();
+timelinePreviewActive =
+false;
 
-      engine.draw();
+renderLayers();
 
-      drawSelectionOverlay();
+engine.draw();
 
-      queuePersist();
-    }
-  );
+drawSelectionOverlay();
+
+queuePersist();
+}
+);
 
 
 q('#flipLayerY')
-  .addEventListener(
-    'click',
-    () => {
-      const layer =
-        engine.selected;
+.addEventListener(
+'click',
+() => {
+if (rootSelected) {
+return;
+}
 
-      if (!layer) {
-        return;
-      }
+const layer =
+engine.selected;
 
-      pushHistory();
+if (!layer) {
+return;
+}
 
-      layer.flipY =
-        !layer.flipY;
+pushHistory();
 
-      layer.base =
-        engine.snapshot(
-          layer
-        );
+layer.flipY =
+!layer.flipY;
 
-      engine.resetRuntime();
+layer.base =
+engine.snapshot(
+layer
+);
 
-      timelinePreviewActive =
-        false;
+engine.resetRuntime();
 
-      renderLayers();
+timelinePreviewActive =
+false;
 
-      engine.draw();
+renderLayers();
 
-      drawSelectionOverlay();
+engine.draw();
 
-      queuePersist();
-    }
-  );
+drawSelectionOverlay();
+
+queuePersist();
+}
+);
 
 
 /* =========================================================
@@ -2391,457 +3213,441 @@ q('#flipLayerY')
    ========================================================= */
 
 const organicPanel =
-  q('#organicPanel');
+q('#organicPanel');
 
 const processHeader =
-  organicPanel.querySelector(
-    '.process-header'
-  );
-
-const organicClose =
-  document.createElement(
-    'button'
-  );
-
-organicClose.type =
-  'button';
-
-organicClose.textContent =
-  '✕ Cerrar';
-
-organicClose.style.width =
-  'auto';
-
-processHeader.appendChild(
-  organicClose
+organicPanel.querySelector(
+'.process-header'
 );
 
-const organicOpen =
-  document.createElement(
-    'button'
-  );
+const organicClose =
+document.createElement(
+'button'
+);
 
-organicOpen.id =
-  'openOrganic';
+organicClose.type =
+'button';
 
-organicOpen.type =
-  'button';
+organicClose.textContent =
+'✕ Cerrar';
 
-organicOpen.textContent =
-  '⚙ Movimiento orgánico';
+organicClose.style.width =
+'auto';
 
-organicOpen.style.margin =
-  '8px 14px 4px';
-
-inspectorPanel.insertBefore(
-  organicOpen,
-  q('#runtimeStatus')
+processHeader.appendChild(
+organicClose
 );
 
 
 function openOrganicPanel() {
-  if (
-    !engine.selected
-  ) {
-    alert(
-      'Selecciona una capa primero.'
-    );
+if (
+rootSelected ||
+!engine.selected
+) {
+alert(
+'Selecciona una capa primero.'
+);
 
-    return;
-  }
+return;
+}
 
-  syncInspector();
+syncInspector();
 
-  organicPanel.hidden =
-    false;
+organicPanel.hidden =
+false;
 }
 
 
 function closeOrganicPanel() {
-  organicPanel.hidden =
-    true;
+organicPanel.hidden =
+true;
 }
 
 
 organicOpen.addEventListener(
-  'click',
-  openOrganicPanel
+'click',
+openOrganicPanel
 );
 
 
 organicClose.addEventListener(
-  'click',
-  closeOrganicPanel
+'click',
+closeOrganicPanel
 );
 
 
 organicPanel.addEventListener(
-  'click',
-  event => {
-    if (
-      event.target ===
-      organicPanel
-    ) {
-      closeOrganicPanel();
-    }
-  }
+'click',
+event => {
+if (
+event.target ===
+organicPanel
+) {
+closeOrganicPanel();
+}
+}
 );
 
 
 function updateOrganicFromUI() {
-  const layer =
-    engine.selected;
+if (rootSelected) {
+return;
+}
 
-  if (!layer) {
-    return;
-  }
+const layer =
+engine.selected;
 
-  let min =
-    Math.max(
-      0.1,
-      Number(
-        q('#organicMin')
-          .value
-      ) ||
-      2
-    );
+if (!layer) {
+return;
+}
 
-  let max =
-    Math.max(
-      0.1,
-      Number(
-        q('#organicMax')
-          .value
-      ) ||
-      3.5
-    );
+let min =
+Math.max(
+0.1,
+Number(
+q('#organicMin')
+.value
+) ||
+2
+);
 
-  if (
-    max <
-    min
-  ) {
-    [
-      min,
-      max
-    ] =
-    [
-      max,
-      min
-    ];
-  }
+let max =
+Math.max(
+0.1,
+Number(
+q('#organicMax')
+.value
+) ||
+3.5
+);
 
-  layer.organic = {
-    enabled:
-      q('#organicEnabled')
-        .checked,
+if (
+max <
+min
+) {
+[
+min,
+max
+] =
+[
+max,
+min
+];
+}
 
-    minInterval:
-      min,
+layer.organic = {
+enabled:
+q('#organicEnabled')
+.checked,
 
-    maxInterval:
-      max,
+minInterval:
+min,
 
-    amount:
-      Math.max(
-        0,
-        Number(
-          q('#organicAmount')
-            .value
-        ) ||
-        0
-      ),
+maxInterval:
+max,
 
-    duration:
-      Math.max(
-        0.08,
-        Number(
-          q('#organicDuration')
-            .value
-        ) ||
-        0.28
-      ),
+amount:
+Math.max(
+0,
+Number(
+q('#organicAmount')
+.value
+) ||
+0
+),
 
-    doubleChance:
-      clamp(
-        (
-          Number(
-            q('#organicDouble')
-              .value
-          ) ||
-          0
-        ) /
-        100,
-        0,
-        1
-      )
-  };
+duration:
+Math.max(
+0.08,
+Number(
+q('#organicDuration')
+.value
+) ||
+0.28
+),
 
-  layer._organicRuntime =
-    null;
+doubleChance:
+clamp(
+(
+Number(
+q('#organicDouble')
+.value
+) ||
+0
+) /
+100,
+0,
+1
+)
+};
 
-  syncLayerMotionButton();
+layer._organicRuntime =
+null;
 
-  queuePersist();
+syncLayerMotionButton();
+
+queuePersist();
 }
 
 
 for (
-  const id
-  of [
-    'organicEnabled',
-    'organicMin',
-    'organicMax',
-    'organicAmount',
-    'organicDuration',
-    'organicDouble'
-  ]
+const id
+of [
+'organicEnabled',
+'organicMin',
+'organicMax',
+'organicAmount',
+'organicDuration',
+'organicDouble'
+]
 ) {
-  const eventName =
-    id ===
-    'organicEnabled'
-      ? 'change'
-      : 'input';
-
-  q(`#${id}`)
-    .addEventListener(
-      eventName,
-      updateOrganicFromUI
-    );
+q(`#${id}`)
+.addEventListener(
+id ===
+'organicEnabled'
+? 'change'
+: 'input',
+updateOrganicFromUI
+);
 }
 
 
 /* =========================================================
-   CARGAR PNG
+   CARGAR / GUARDAR / ABRIR
    ========================================================= */
 
 q('#add')
-  .addEventListener(
-    'click',
-    () => {
-      q('#file')
-        .click();
-    }
-  );
+.addEventListener(
+'click',
+() => {
+q('#file')
+.click();
+}
+);
 
 
 q('#file')
-  .addEventListener(
-    'change',
-    async event => {
-      const file =
-        event.target
-          .files?.[0];
+.addEventListener(
+'change',
+async event => {
+const file =
+event.target
+.files?.[0];
 
-      if (!file) {
-        return;
-      }
+if (!file) {
+return;
+}
 
-      try {
-        pushHistory();
+try {
+pushHistory();
 
-        const src =
-          await fileToDataURL(
-            file
-          );
+const src =
+await fileToDataURL(
+file
+);
 
-        const image =
-          await loadImage(
-            src
-          );
+const image =
+await loadImage(
+src
+);
 
-        const layer =
-          engine.addLayer({
-            name:
-              file.name.replace(
-                /\.[^.]+$/,
-                ''
-              ),
+const layer =
+engine.addLayer({
+name:
+file.name.replace(
+/\.[^.]+$/,
+''
+),
 
-            src,
+src,
 
-            image
-          });
+image
+});
 
-        multiSelection.clear();
+rootSelected =
+false;
 
-        engine.selectedId =
-          layer.id;
+multiSelection.clear();
 
-        timelinePreviewActive =
-          false;
+engine.selectedId =
+layer.id;
 
-        renderLayers();
+timelinePreviewActive =
+false;
 
-        syncInspector();
+renderLayers();
 
-        renderTimelineLists();
+syncInspector();
 
-        engine.draw();
+renderTimelineLists();
 
-        drawSelectionOverlay();
+engine.draw();
 
-        await persistProject({
-          broadcast: true
-        });
+drawSelectionOverlay();
 
-      } catch (error) {
-        console.error(
-          error
-        );
+await persistProject({
+broadcast:
+true
+});
 
-        alert(
-          'No se pudo cargar la imagen.'
-        );
+} catch (error) {
+console.error(
+error
+);
 
-      } finally {
-        event.target.value =
-          '';
-      }
-    }
-  );
+alert(
+'No se pudo cargar la imagen.'
+);
 
+} finally {
+event.target.value =
+'';
+}
+}
+);
 
-/* =========================================================
-   GUARDAR / ABRIR
-   ========================================================= */
 
 q('#save')
-  .addEventListener(
-    'click',
-    () => {
-      const blob =
-        new Blob(
-          [
-            JSON.stringify(
-              currentProject(),
-              null,
-              2
-            )
-          ],
-          {
-            type:
-              'application/json'
-          }
-        );
+.addEventListener(
+'click',
+() => {
+const blob =
+new Blob(
+[
+JSON.stringify(
+currentProject(),
+null,
+2
+)
+],
+{
+type:
+'application/json'
+}
+);
 
-      const url =
-        URL.createObjectURL(
-          blob
-        );
+const url =
+URL.createObjectURL(
+blob
+);
 
-      const anchor =
-        document.createElement(
-          'a'
-        );
+const anchor =
+document.createElement(
+'a'
+);
 
-      anchor.href =
-        url;
+anchor.href =
+url;
 
-      anchor.download =
-        'mikatsune-project-v0.2.5.json';
+anchor.download =
+'mikatsune-project-v0.2.6.json';
 
-      anchor.click();
+anchor.click();
 
-      setTimeout(
-        () => {
-          URL.revokeObjectURL(
-            url
-          );
-        },
-        0
-      );
-    }
-  );
+setTimeout(
+() => {
+URL.revokeObjectURL(
+url
+);
+},
+0
+);
+}
+);
 
 
 q('#load')
-  .addEventListener(
-    'click',
-    () => {
-      q('#loadFile')
-        .click();
-    }
-  );
+.addEventListener(
+'click',
+() => {
+q('#loadFile')
+.click();
+}
+);
 
 
 q('#loadFile')
-  .addEventListener(
-    'change',
-    async event => {
-      const file =
-        event.target
-          .files?.[0];
+.addEventListener(
+'change',
+async event => {
+const file =
+event.target
+.files?.[0];
 
-      if (!file) {
-        return;
-      }
+if (!file) {
+return;
+}
 
-      try {
-        pushHistory();
+try {
+pushHistory();
 
-        const data =
-          JSON.parse(
-            await file.text()
-          );
+const data =
+JSON.parse(
+await file.text()
+);
 
-        animator.pause();
+animator.pause();
 
-        animator.currentTime =
-          0;
+animator.currentTime =
+0;
 
-        animator.manualStates
-          .clear();
+animator.manualStates
+.clear();
 
-        await engine.load(
-          data
-        );
+await engine.load(
+data
+);
 
-        editorMode =
-          'design';
+editorMode =
+'design';
 
-        multiSelection.clear();
+rootSelected =
+false;
 
-        selectedAnimationRef =
-          null;
+multiSelection.clear();
 
-        timelinePreviewActive =
-          false;
+selectedAnimationRef =
+null;
 
-        updateSelectedAnimationLabel();
+timelinePreviewActive =
+false;
 
-        syncModeUI();
+updateSelectedAnimationLabel();
 
-        syncTimelineUI();
+syncModeUI();
 
-        renderLayers();
+syncTimelineUI();
 
-        syncInspector();
+renderLayers();
 
-        renderTimelineLists();
+syncInspector();
 
-        engine.draw();
+renderTimelineLists();
 
-        drawSelectionOverlay();
+engine.draw();
 
-        await persistProject({
-          broadcast: true
-        });
+drawSelectionOverlay();
 
-      } catch (error) {
-        console.error(
-          error
-        );
+await persistProject({
+broadcast:
+true
+});
 
-        alert(
-          'No se pudo abrir el proyecto.'
-        );
+} catch (error) {
+console.error(
+error
+);
 
-      } finally {
-        event.target.value =
-          '';
-      }
-    }
-  );
+alert(
+'No se pudo abrir el proyecto.'
+);
+
+} finally {
+event.target.value =
+'';
+}
+}
+);
 
 
 /* =========================================================
@@ -2849,811 +3655,1102 @@ q('#loadFile')
    ========================================================= */
 
 function clampZoom(
-  value
+value
 ) {
-  return clamp(
-    Math.round(
-      value /
-      5
-    ) *
-    5,
-    25,
-    200
-  );
+return clamp(
+Math.round(
+value /
+5
+) *
+5,
+25,
+200
+);
 }
 
 
 function applyZoom(
-  value,
-  {
-    keepCenter =
-      true
-  } = {}
+value,
+{
+keepCenter =
+true
+} = {}
 ) {
-  const viewport =
-    q('#stageViewport');
+const viewport =
+q('#stageViewport');
 
-  const shell =
-    q('#stageShell');
+const shell =
+q('#stageShell');
 
-  const oldRect =
-    shell.getBoundingClientRect();
+const oldRect =
+shell.getBoundingClientRect();
 
-  const oldWidth =
-    oldRect.width ||
-    engine.canvas.width;
+const oldWidth =
+oldRect.width ||
+engine.canvas.width;
 
-  const oldHeight =
-    oldRect.height ||
-    engine.canvas.height;
+const oldHeight =
+oldRect.height ||
+engine.canvas.height;
 
-  const centerX =
-    viewport.scrollLeft +
-    viewport.clientWidth /
-    2;
+const centerX =
+viewport.scrollLeft +
+viewport.clientWidth /
+2;
 
-  const centerY =
-    viewport.scrollTop +
-    viewport.clientHeight /
-    2;
+const centerY =
+viewport.scrollTop +
+viewport.clientHeight /
+2;
 
-  const relX =
-    oldWidth
-      ? centerX /
-        oldWidth
-      : 0.5;
+const relX =
+oldWidth
+? centerX /
+oldWidth
+: 0.5;
 
-  const relY =
-    oldHeight
-      ? centerY /
-        oldHeight
-      : 0.5;
+const relY =
+oldHeight
+? centerY /
+oldHeight
+: 0.5;
 
-  zoomPercent =
-    clampZoom(
-      value
-    );
+zoomPercent =
+clampZoom(
+value
+);
 
-  const factor =
-    zoomPercent /
-    100;
+const factor =
+zoomPercent /
+100;
 
-  shell.style.width =
-    `${
-      engine.canvas.width *
-      factor
-    }px`;
+shell.style.width =
+`${
+engine.canvas.width *
+factor
+}px`;
 
-  shell.style.height =
-    `${
-      engine.canvas.height *
-      factor
-    }px`;
+shell.style.height =
+`${
+engine.canvas.height *
+factor
+}px`;
 
-  q('#zoomRange').value =
-    zoomPercent;
+q('#zoomRange')
+.value =
+zoomPercent;
 
-  q('#zoomValue')
-    .textContent =
-    `${zoomPercent}%`;
+q('#zoomValue')
+.textContent =
+`${zoomPercent}%`;
 
-  if (
-    keepCenter
-  ) {
-    requestAnimationFrame(
-      () => {
-        const newWidth =
-          engine.canvas.width *
-          factor;
+if (keepCenter) {
+requestAnimationFrame(
+() => {
+const newWidth =
+engine.canvas.width *
+factor;
 
-        const newHeight =
-          engine.canvas.height *
-          factor;
+const newHeight =
+engine.canvas.height *
+factor;
 
-        viewport.scrollLeft =
-          Math.max(
-            0,
+viewport.scrollLeft =
+Math.max(
+0,
+newWidth *
+relX -
+viewport.clientWidth /
+2
+);
 
-            newWidth *
-            relX -
-            viewport.clientWidth /
-            2
-          );
-
-        viewport.scrollTop =
-          Math.max(
-            0,
-
-            newHeight *
-            relY -
-            viewport.clientHeight /
-            2
-          );
-      }
-    );
-  }
+viewport.scrollTop =
+Math.max(
+0,
+newHeight *
+relY -
+viewport.clientHeight /
+2
+);
+}
+);
+}
 }
 
 
 function fitStage() {
-  const viewport =
-    q('#stageViewport');
+const viewport =
+q('#stageViewport');
 
-  const padding =
-    44;
+const padding =
+44;
 
-  const availableWidth =
-    Math.max(
-      100,
+const availableWidth =
+Math.max(
+100,
+viewport.clientWidth -
+padding
+);
 
-      viewport.clientWidth -
-      padding
-    );
+const availableHeight =
+Math.max(
+100,
+viewport.clientHeight -
+padding
+);
 
-  const availableHeight =
-    Math.max(
-      100,
+const fit =
+Math.min(
+availableWidth /
+engine.canvas.width,
 
-      viewport.clientHeight -
-      padding
-    );
+availableHeight /
+engine.canvas.height
+) *
+100;
 
-  const fit =
-    Math.min(
-      availableWidth /
-      engine.canvas.width,
-
-      availableHeight /
-      engine.canvas.height
-    ) *
-    100;
-
-  applyZoom(
-    Math.min(
-      100,
-      fit
-    ),
-    {
-      keepCenter:
-        false
-    }
-  );
+applyZoom(
+Math.min(
+100,
+fit
+),
+{
+keepCenter:
+false
+}
+);
 }
 
 
 q('#zoomRange')
-  .addEventListener(
-    'input',
-    event => {
-      applyZoom(
-        Number(
-          event.target.value
-        )
-      );
-    }
-  );
+.addEventListener(
+'input',
+event => {
+applyZoom(
+Number(
+event.target.value
+)
+);
+}
+);
 
 
 q('#zoomOut')
-  .addEventListener(
-    'click',
-    () => {
-      applyZoom(
-        zoomPercent -
-        10
-      );
-    }
-  );
+.addEventListener(
+'click',
+() => {
+applyZoom(
+zoomPercent -
+10
+);
+}
+);
 
 
 q('#zoomIn')
-  .addEventListener(
-    'click',
-    () => {
-      applyZoom(
-        zoomPercent +
-        10
-      );
-    }
-  );
+.addEventListener(
+'click',
+() => {
+applyZoom(
+zoomPercent +
+10
+);
+}
+);
 
 
 q('#zoomFit')
-  .addEventListener(
-    'click',
-    fitStage
-  );
+.addEventListener(
+'click',
+fitStage
+);
 
 
 q('#stageViewport')
-  .addEventListener(
-    'wheel',
-    event => {
-      if (
-        !(
-          event.ctrlKey ||
-          event.metaKey
-        )
-      ) {
-        return;
-      }
+.addEventListener(
+'wheel',
+event => {
+if (
+!(
+event.ctrlKey ||
+event.metaKey
+)
+) {
+return;
+}
 
-      event.preventDefault();
+event.preventDefault();
 
-      applyZoom(
-        zoomPercent +
-        (
-          event.deltaY <
-          0
-            ? 10
-            : -10
-        )
-      );
-    },
-    {
-      passive:
-        false
-    }
-  );
+applyZoom(
+zoomPercent +
+(
+event.deltaY <
+0
+? 10
+: -10
+)
+);
+},
+{
+passive:
+false
+}
+);
 
 
 /* =========================================================
-   COORDENADAS CANVAS
+   COORDENADAS + CAPA → MUNDO
    ========================================================= */
 
 function pointerToCanvas(
-  event
+event
 ) {
-  const rect =
-    stage.getBoundingClientRect();
+const rect =
+stage.getBoundingClientRect();
 
-  return {
-    x:
-      (
-        event.clientX -
-        rect.left
-      ) *
-      stage.width /
-      rect.width,
+return {
+x:
+(
+event.clientX -
+rect.left
+) *
+stage.width /
+rect.width,
 
-    y:
-      (
-        event.clientY -
-        rect.top
-      ) *
-      stage.height /
-      rect.height
-  };
+y:
+(
+event.clientY -
+rect.top
+) *
+stage.height /
+rect.height
+};
 }
 
 
-/* =========================================================
-   TRANSFORMACIONES GEOMÉTRICAS
-   ========================================================= */
+function imagePointToRootLocal(
+layer,
+imageX,
+imageY,
+pose =
+getEffectivePose(
+layer
+)
+) {
+const scale =
+Number(
+pose.scale
+) ||
+1;
+
+const sx =
+scale *
+(
+layer.flipX
+? -1
+: 1
+);
+
+const sy =
+scale *
+(
+layer.flipY
+? -1
+: 1
+);
+
+const localX =
+(
+imageX -
+pose.pivotX
+) *
+sx;
+
+const localY =
+(
+imageY -
+pose.pivotY
+) *
+sy;
+
+const angle =
+pose.rotation *
+Math.PI /
+180;
+
+const cos =
+Math.cos(
+angle
+);
+
+const sin =
+Math.sin(
+angle
+);
+
+return {
+x:
+pose.x +
+localX *
+cos -
+localY *
+sin,
+
+y:
+pose.y +
+localX *
+sin +
+localY *
+cos
+};
+}
+
 
 function imagePointToWorld(
-  layer,
-  imageX,
-  imageY,
-  pose =
-    getEffectivePose(
-      layer
-    )
+layer,
+imageX,
+imageY,
+pose =
+getEffectivePose(
+layer
+)
 ) {
-  const scale =
-    Number(
-      pose.scale
-    ) ||
-    1;
-
-  const sx =
-    scale *
-    (
-      layer.flipX
-        ? -1
-        : 1
-    );
-
-  const sy =
-    scale *
-    (
-      layer.flipY
-        ? -1
-        : 1
-    );
-
-  const localX =
-    (
-      imageX -
-      pose.pivotX
-    ) *
-    sx;
-
-  const localY =
-    (
-      imageY -
-      pose.pivotY
-    ) *
-    sy;
-
-  const angle =
-    pose.rotation *
-    Math.PI /
-    180;
-
-  const cos =
-    Math.cos(
-      angle
-    );
-
-  const sin =
-    Math.sin(
-      angle
-    );
-
-  return {
-    x:
-      pose.x +
-      localX *
-      cos -
-      localY *
-      sin,
-
-    y:
-      pose.y +
-      localX *
-      sin +
-      localY *
-      cos
-  };
+return rootLocalToWorldPoint(
+imagePointToRootLocal(
+layer,
+imageX,
+imageY,
+pose
+)
+);
 }
 
 
 function worldPointToImage(
-  layer,
-  worldX,
-  worldY,
-  pose =
-    getEffectivePose(
-      layer
-    )
+layer,
+worldX,
+worldY,
+pose =
+getEffectivePose(
+layer
+)
 ) {
-  const dx =
-    worldX -
-    pose.x;
+const localWorld =
+worldToRootLocalPoint({
+x:
+worldX,
 
-  const dy =
-    worldY -
-    pose.y;
+y:
+worldY
+});
 
-  const angle =
-    pose.rotation *
-    Math.PI /
-    180;
+const dx =
+localWorld.x -
+pose.x;
 
-  const cos =
-    Math.cos(
-      angle
-    );
+const dy =
+localWorld.y -
+pose.y;
 
-  const sin =
-    Math.sin(
-      angle
-    );
+const angle =
+pose.rotation *
+Math.PI /
+180;
 
-  const rotatedX =
-    cos *
-    dx +
-    sin *
-    dy;
+const cos =
+Math.cos(
+angle
+);
 
-  const rotatedY =
-    -sin *
-    dx +
-    cos *
-    dy;
+const sin =
+Math.sin(
+angle
+);
 
-  const scale =
-    Math.max(
-      0.0001,
+const rotatedX =
+cos *
+dx +
+sin *
+dy;
 
-      Math.abs(
-        Number(
-          pose.scale
-        ) ||
-        1
-      )
-    );
+const rotatedY =
+-sin *
+dx +
+cos *
+dy;
 
-  const sx =
-    scale *
-    (
-      layer.flipX
-        ? -1
-        : 1
-    );
+const scale =
+Math.max(
+0.0001,
+Math.abs(
+Number(
+pose.scale
+) ||
+1
+)
+);
 
-  const sy =
-    scale *
-    (
-      layer.flipY
-        ? -1
-        : 1
-    );
+const sx =
+scale *
+(
+layer.flipX
+? -1
+: 1
+);
 
-  return {
-    x:
-      rotatedX /
-      sx +
-      pose.pivotX,
+const sy =
+scale *
+(
+layer.flipY
+? -1
+: 1
+);
 
-    y:
-      rotatedY /
-      sy +
-      pose.pivotY
-  };
+return {
+x:
+rotatedX /
+sx +
+pose.pivotX,
+
+y:
+rotatedY /
+sy +
+pose.pivotY
+};
 }
 
 
-/* =========================================================
-   HIT TEST
-   ========================================================= */
-
 function pointInsideLayer(
-  layer,
-  x,
-  y
+layer,
+x,
+y
 ) {
-  if (
-    !layer.image
-  ) {
-    return false;
-  }
+if (
+!layer.image
+) {
+return false;
+}
 
-  const pose =
-    getEffectivePose(
-      layer
-    );
+const pose =
+getEffectivePose(
+layer
+);
 
-  if (
-    !pose.visible
-  ) {
-    return false;
-  }
+if (
+!pose.visible
+) {
+return false;
+}
 
-  const local =
-    worldPointToImage(
-      layer,
-      x,
-      y,
-      pose
-    );
+const local =
+worldPointToImage(
+layer,
+x,
+y,
+pose
+);
 
-  const halfW =
-    layer.image.width /
-    2;
+const halfW =
+layer.image.width /
+2;
 
-  const halfH =
-    layer.image.height /
-    2;
+const halfH =
+layer.image.height /
+2;
 
-  return (
-    local.x >=
-      -halfW &&
-    local.x <=
-      halfW &&
-    local.y >=
-      -halfH &&
-    local.y <=
-      halfH
-  );
+return (
+local.x >=
+-halfW &&
+local.x <=
+halfW &&
+local.y >=
+-halfH &&
+local.y <=
+halfH
+);
 }
 
 
 function layerAtPoint(
-  x,
-  y
+x,
+y
 ) {
-  for (
-    let i =
-      engine.layers.length -
-      1;
+for (
+let i =
+engine.layers.length -
+1;
 
-    i >=
-      0;
+i >=
+0;
 
-    i--
-  ) {
-    const layer =
-      engine.layers[i];
+i--
+) {
+const layer =
+engine.layers[
+i
+];
 
-    if (
-      pointInsideLayer(
-        layer,
-        x,
-        y
-      )
-    ) {
-      return layer;
-    }
-  }
+if (
+pointInsideLayer(
+layer,
+x,
+y
+)
+) {
+return layer;
+}
+}
 
-  return null;
+return null;
 }
 
 
 /* =========================================================
-   SELECCIÓN SIMPLE
+   GEOMETRÍA DE SELECCIÓN
    ========================================================= */
+
+function layerLocalCorners(
+layer,
+pose =
+getEffectivePose(
+layer
+)
+) {
+if (
+!layer?.image
+) {
+return null;
+}
+
+const halfW =
+layer.image.width /
+2;
+
+const halfH =
+layer.image.height /
+2;
+
+return {
+tl:
+imagePointToRootLocal(
+layer,
+-halfW,
+-halfH,
+pose
+),
+
+tr:
+imagePointToRootLocal(
+layer,
+halfW,
+-halfH,
+pose
+),
+
+br:
+imagePointToRootLocal(
+layer,
+halfW,
+halfH,
+pose
+),
+
+bl:
+imagePointToRootLocal(
+layer,
+-halfW,
+halfH,
+pose
+)
+};
+}
+
 
 function selectionGeometry(
-  layer
+layer
 ) {
-  if (
-    !layer?.image
-  ) {
-    return null;
-  }
+if (
+!layer?.image
+) {
+return null;
+}
 
-  const pose =
-    getEffectivePose(
-      layer
-    );
+const pose =
+getEffectivePose(
+layer
+);
 
-  const halfW =
-    layer.image.width /
-    2;
+const halfW =
+layer.image.width /
+2;
 
-  const halfH =
-    layer.image.height /
-    2;
+const halfH =
+layer.image.height /
+2;
 
-  const topY =
-    layer.flipY
-      ? halfH
-      : -halfH;
+const topY =
+layer.flipY
+? halfH
+: -halfH;
 
-  const outward =
-    layer.flipY
-      ? 1
-      : -1;
+const outward =
+layer.flipY
+? 1
+: -1;
 
-  const rotateDistance =
-    48 /
-    Math.max(
-      0.15,
-      Math.abs(
-        pose.scale
-      )
-    );
+const rootScale =
+Math.max(
+0.05,
+Math.abs(
+Number(
+rootPose().scale
+) ||
+1
+)
+);
 
-  return {
-    tl:
-      imagePointToWorld(
-        layer,
-        -halfW,
-        -halfH,
-        pose
-      ),
+const rotateDistance =
+48 /
+Math.max(
+0.15,
+Math.abs(
+pose.scale
+)
+) /
+rootScale;
 
-    tr:
-      imagePointToWorld(
-        layer,
-        halfW,
-        -halfH,
-        pose
-      ),
+return {
+tl:
+imagePointToWorld(
+layer,
+-halfW,
+-halfH,
+pose
+),
 
-    br:
-      imagePointToWorld(
-        layer,
-        halfW,
-        halfH,
-        pose
-      ),
+tr:
+imagePointToWorld(
+layer,
+halfW,
+-halfH,
+pose
+),
 
-    bl:
-      imagePointToWorld(
-        layer,
-        -halfW,
-        halfH,
-        pose
-      ),
+br:
+imagePointToWorld(
+layer,
+halfW,
+halfH,
+pose
+),
 
-    topCenter:
-      imagePointToWorld(
-        layer,
-        0,
-        topY,
-        pose
-      ),
+bl:
+imagePointToWorld(
+layer,
+-halfW,
+halfH,
+pose
+),
 
-    rotate:
-      imagePointToWorld(
-        layer,
-        0,
-        topY +
-        outward *
-        rotateDistance,
-        pose
-      ),
+topCenter:
+imagePointToWorld(
+layer,
+0,
+topY,
+pose
+),
 
-    pivot: {
-      x:
-        pose.x,
+rotate:
+imagePointToWorld(
+layer,
+0,
+topY +
+outward *
+rotateDistance,
+pose
+),
 
-      y:
-        pose.y
-    }
-  };
+pivot:
+rootLocalToWorldPoint({
+x:
+pose.x,
+
+y:
+pose.y
+})
+};
 }
 
 
-/* =========================================================
-   BOUNDS MULTISELECCIÓN
-   ========================================================= */
+function localBoundsForLayers(
+layers,
+{
+useDesign =
+false
+} = {}
+) {
+let minX =
+Infinity;
+
+let minY =
+Infinity;
+
+let maxX =
+-Infinity;
+
+let maxY =
+-Infinity;
+
+for (
+const layer
+of layers
+) {
+if (
+!layer.image
+) {
+continue;
+}
+
+const pose =
+useDesign
+? designPose(
+layer
+)
+: getEffectivePose(
+layer
+);
+
+const corners =
+layerLocalCorners(
+layer,
+pose
+);
+
+if (!corners) {
+continue;
+}
+
+for (
+const point
+of Object.values(
+corners
+)
+) {
+minX =
+Math.min(
+minX,
+point.x
+);
+
+minY =
+Math.min(
+minY,
+point.y
+);
+
+maxX =
+Math.max(
+maxX,
+point.x
+);
+
+maxY =
+Math.max(
+maxY,
+point.y
+);
+}
+}
+
+if (
+!Number.isFinite(
+minX
+)
+) {
+return null;
+}
+
+const center = {
+x:
+(
+minX +
+maxX
+) /
+2,
+
+y:
+(
+minY +
+maxY
+) /
+2
+};
+
+return {
+minX,
+minY,
+maxX,
+maxY,
+center
+};
+}
+
 
 function selectedMultiLayers() {
-  return engine.layers.filter(
-    layer =>
-      multiSelection.has(
-        layer.id
-      )
-  );
+return engine.layers.filter(
+layer =>
+multiSelection.has(
+layer.id
+)
+);
 }
 
 
-function multiBounds() {
-  const layers =
-    selectedMultiLayers();
+function multiLocalBounds() {
+const layers =
+selectedMultiLayers();
 
-  if (
-    layers.length <
-    2
-  ) {
-    return null;
-  }
+if (
+layers.length <
+2
+) {
+return null;
+}
 
-  let minX =
-    Infinity;
+return localBoundsForLayers(
+layers
+);
+}
 
-  let minY =
-    Infinity;
 
-  let maxX =
-    -Infinity;
+function localBoundsGeometry(
+bounds
+) {
+if (!bounds) {
+return null;
+}
 
-  let maxY =
-    -Infinity;
+const scale =
+Math.max(
+0.05,
+Math.abs(
+Number(
+rootPose().scale
+) ||
+1
+)
+);
 
-  for (
-    const layer
-    of layers
-  ) {
-    const geometry =
-      selectionGeometry(
-        layer
-      );
+const rotateGap =
+55 /
+scale;
 
-    if (!geometry) {
-      continue;
-    }
+return {
+local:
+bounds,
 
-    for (
-      const point
-      of [
-        geometry.tl,
-        geometry.tr,
-        geometry.br,
-        geometry.bl
-      ]
-    ) {
-      minX =
-        Math.min(
-          minX,
-          point.x
-        );
+tl:
+rootLocalToWorldPoint({
+x:
+bounds.minX,
 
-      minY =
-        Math.min(
-          minY,
-          point.y
-        );
+y:
+bounds.minY
+}),
 
-      maxX =
-        Math.max(
-          maxX,
-          point.x
-        );
+tr:
+rootLocalToWorldPoint({
+x:
+bounds.maxX,
 
-      maxY =
-        Math.max(
-          maxY,
-          point.y
-        );
-    }
-  }
+y:
+bounds.minY
+}),
 
-  if (
-    !Number.isFinite(
-      minX
-    )
-  ) {
-    return null;
-  }
+br:
+rootLocalToWorldPoint({
+x:
+bounds.maxX,
 
-  const center = {
-    x:
-      (
-        minX +
-        maxX
-      ) /
-      2,
+y:
+bounds.maxY
+}),
 
-    y:
-      (
-        minY +
-        maxY
-      ) /
-      2
-  };
+bl:
+rootLocalToWorldPoint({
+x:
+bounds.minX,
 
-  return {
-    minX,
-    minY,
-    maxX,
-    maxY,
-    center,
+y:
+bounds.maxY
+}),
 
-    tl: {
-      x:
-        minX,
+topCenter:
+rootLocalToWorldPoint({
+x:
+bounds.center.x,
 
-      y:
-        minY
-    },
+y:
+bounds.minY
+}),
 
-    tr: {
-      x:
-        maxX,
+rotate:
+rootLocalToWorldPoint({
+x:
+bounds.center.x,
 
-      y:
-        minY
-    },
+y:
+bounds.minY -
+rotateGap
+}),
 
-    br: {
-      x:
-        maxX,
+center:
+rootLocalToWorldPoint(
+bounds.center
+)
+};
+}
 
-      y:
-        maxY
-    },
 
-    bl: {
-      x:
-        minX,
+function rootLocalBounds() {
+const visible =
+engine.layers.filter(
+layer =>
+layer.image &&
+layer.visible !==
+false
+);
 
-      y:
-        maxY
-    },
+const source =
+visible.length
+? visible
+: engine.layers;
 
-    topCenter: {
-      x:
-        center.x,
+return localBoundsForLayers(
+source,
+{
+useDesign:
+true
+}
+);
+}
 
-      y:
-        minY
-    },
 
-    rotate: {
-      x:
-        center.x,
+function rootSelectionGeometry() {
+const bounds =
+rootLocalBounds();
 
-      y:
-        minY -
-        55
-    }
-  };
+if (!bounds) {
+return null;
+}
+
+const pose =
+rootPose();
+
+const rootScale =
+Math.max(
+0.05,
+Math.abs(
+Number(
+pose.scale
+) ||
+1
+)
+);
+
+const rotateGap =
+55 /
+rootScale;
+
+return {
+local:
+bounds,
+
+tl:
+rootLocalToWorldPoint(
+{
+x:
+bounds.minX,
+
+y:
+bounds.minY
+},
+pose
+),
+
+tr:
+rootLocalToWorldPoint(
+{
+x:
+bounds.maxX,
+
+y:
+bounds.minY
+},
+pose
+),
+
+br:
+rootLocalToWorldPoint(
+{
+x:
+bounds.maxX,
+
+y:
+bounds.maxY
+},
+pose
+),
+
+bl:
+rootLocalToWorldPoint(
+{
+x:
+bounds.minX,
+
+y:
+bounds.maxY
+},
+pose
+),
+
+topCenter:
+rootLocalToWorldPoint(
+{
+x:
+bounds.center.x,
+
+y:
+bounds.minY
+},
+pose
+),
+
+rotate:
+rootLocalToWorldPoint(
+{
+x:
+bounds.center.x,
+
+y:
+bounds.minY -
+rotateGap
+},
+pose
+),
+
+pivot:
+rootLocalToWorldPoint(
+{
+x:
+pose.pivotX,
+
+y:
+pose.pivotY
+},
+pose
+)
+};
 }
 
 
@@ -3662,1866 +4759,2265 @@ function multiBounds() {
    ========================================================= */
 
 function handleRadiusCanvas() {
-  return (
-    9 *
-    100 /
-    Math.max(
-      25,
-      zoomPercent
-    )
-  );
+return (
+9 *
+100 /
+Math.max(
+25,
+zoomPercent
+)
+);
 }
 
 
 function distance(
-  a,
-  b
+a,
+b
 ) {
-  return Math.hypot(
-    a.x -
-    b.x,
+return Math.hypot(
+a.x -
+b.x,
 
-    a.y -
-    b.y
-  );
+a.y -
+b.y
+);
 }
 
 
-function selectedHandleAtPoint(
-  point
+function rootHandleAtPoint(
+point
 ) {
-  const radius =
-    handleRadiusCanvas() *
-    1.6;
+const geometry =
+rootSelectionGeometry();
 
-  if (
-    multiSelection.size >
-    1
-  ) {
-    const bounds =
-      multiBounds();
+if (!geometry) {
+return null;
+}
 
-    if (!bounds) {
-      return null;
-    }
+const radius =
+handleRadiusCanvas() *
+1.6;
 
-    if (
-      distance(
-        point,
-        bounds.rotate
-      ) <=
-      radius *
-      1.2
-    ) {
-      return {
-        type:
-          'multi-rotate',
 
-        bounds
-      };
-    }
+if (
+distance(
+point,
+geometry.pivot
+) <=
+radius
+) {
+return {
+type:
+'root-pivot',
 
-    for (
-      const name
-      of [
-        'tl',
-        'tr',
-        'br',
-        'bl'
-      ]
-    ) {
-      if (
-        distance(
-          point,
-          bounds[name]
-        ) <=
-        radius
-      ) {
-        return {
-          type:
-            'multi-scale',
+geometry
+};
+}
 
-          corner:
-            name,
 
-          bounds
-        };
-      }
-    }
+if (
+distance(
+point,
+geometry.rotate
+) <=
+radius *
+1.2
+) {
+return {
+type:
+'root-rotate',
 
-    if (
-      point.x >=
-        bounds.minX &&
-      point.x <=
-        bounds.maxX &&
-      point.y >=
-        bounds.minY &&
-      point.y <=
-        bounds.maxY
-    ) {
-      return {
-        type:
-          'multi-move',
+geometry
+};
+}
 
-        bounds
-      };
-    }
 
-    return null;
-  }
+for (
+const name
+of [
+'tl',
+'tr',
+'br',
+'bl'
+]
+) {
+if (
+distance(
+point,
+geometry[
+name
+]
+) <=
+radius
+) {
+return {
+type:
+'root-scale',
 
-  const layer =
-    engine.selected;
+corner:
+name,
 
-  if (
-    !layer ||
-    !layer.image
-  ) {
-    return null;
-  }
+geometry
+};
+}
+}
 
-  const geometry =
-    selectionGeometry(
-      layer
-    );
 
-  if (!geometry) {
-    return null;
-  }
+const local =
+worldToRootLocalPoint(
+point
+);
 
-  if (
-    distance(
-      point,
-      geometry.pivot
-    ) <=
-    radius
-  ) {
-    return {
-      type:
-        'pivot',
+const bounds =
+geometry.local;
 
-      geometry
-    };
-  }
+if (
+local.x >=
+bounds.minX &&
+local.x <=
+bounds.maxX &&
+local.y >=
+bounds.minY &&
+local.y <=
+bounds.maxY
+) {
+return {
+type:
+'root-move',
 
-  if (
-    distance(
-      point,
-      geometry.rotate
-    ) <=
-    radius *
-    1.2
-  ) {
-    return {
-      type:
-        'rotate',
+geometry
+};
+}
 
-      geometry
-    };
-  }
+return null;
+}
 
-  for (
-    const name
-    of [
-      'tl',
-      'tr',
-      'br',
-      'bl'
-    ]
-  ) {
-    if (
-      distance(
-        point,
-        geometry[name]
-      ) <=
-      radius
-    ) {
-      return {
-        type:
-          'scale',
 
-        corner:
-          name,
+function multiHandleAtPoint(
+point
+) {
+const bounds =
+multiLocalBounds();
 
-        geometry
-      };
-    }
-  }
+const geometry =
+localBoundsGeometry(
+bounds
+);
 
-  return null;
+if (!geometry) {
+return null;
+}
+
+const radius =
+handleRadiusCanvas() *
+1.6;
+
+
+if (
+distance(
+point,
+geometry.rotate
+) <=
+radius *
+1.2
+) {
+return {
+type:
+'multi-rotate',
+
+geometry,
+
+bounds
+};
+}
+
+
+for (
+const name
+of [
+'tl',
+'tr',
+'br',
+'bl'
+]
+) {
+if (
+distance(
+point,
+geometry[
+name
+]
+) <=
+radius
+) {
+return {
+type:
+'multi-scale',
+
+corner:
+name,
+
+geometry,
+
+bounds
+};
+}
+}
+
+
+const local =
+worldToRootLocalPoint(
+point
+);
+
+if (
+local.x >=
+bounds.minX &&
+local.x <=
+bounds.maxX &&
+local.y >=
+bounds.minY &&
+local.y <=
+bounds.maxY
+) {
+return {
+type:
+'multi-move',
+
+geometry,
+
+bounds
+};
+}
+
+return null;
+}
+
+
+function selectedLayerHandleAtPoint(
+point
+) {
+const layer =
+engine.selected;
+
+if (
+!layer ||
+!layer.image
+) {
+return null;
+}
+
+const geometry =
+selectionGeometry(
+layer
+);
+
+if (!geometry) {
+return null;
+}
+
+const radius =
+handleRadiusCanvas() *
+1.6;
+
+
+if (
+distance(
+point,
+geometry.pivot
+) <=
+radius
+) {
+return {
+type:
+'pivot',
+
+geometry
+};
+}
+
+
+if (
+distance(
+point,
+geometry.rotate
+) <=
+radius *
+1.2
+) {
+return {
+type:
+'rotate',
+
+geometry
+};
+}
+
+
+for (
+const name
+of [
+'tl',
+'tr',
+'br',
+'bl'
+]
+) {
+if (
+distance(
+point,
+geometry[
+name
+]
+) <=
+radius
+) {
+return {
+type:
+'scale',
+
+corner:
+name,
+
+geometry
+};
+}
+}
+
+return null;
 }
 
 
 /* =========================================================
-   DIBUJAR OVERLAY
+   DIBUJAR SELECCIÓN
    ========================================================= */
 
 function drawSquareHandle(
-  ctx,
-  point,
-  radius
+ctx,
+point,
+radius
 ) {
-  ctx.beginPath();
+ctx.beginPath();
 
-  ctx.rect(
-    point.x -
-    radius,
+ctx.rect(
+point.x -
+radius,
 
-    point.y -
-    radius,
+point.y -
+radius,
 
-    radius *
-    2,
+radius *
+2,
 
-    radius *
-    2
-  );
+radius *
+2
+);
 
-  ctx.fill();
+ctx.fill();
 
-  ctx.stroke();
+ctx.stroke();
+}
+
+
+function drawPolygon(
+ctx,
+points
+) {
+ctx.beginPath();
+
+ctx.moveTo(
+points[0].x,
+points[0].y
+);
+
+for (
+const point
+of points.slice(
+1
+)
+) {
+ctx.lineTo(
+point.x,
+point.y
+);
+}
+
+ctx.closePath();
+
+ctx.stroke();
+}
+
+
+function drawTransformGeometry(
+geometry,
+{
+root =
+false,
+
+multi =
+false
+} = {}
+) {
+if (!geometry) {
+return;
+}
+
+const ctx =
+stage.getContext(
+'2d'
+);
+
+const radius =
+handleRadiusCanvas();
+
+const lineWidth =
+Math.max(
+1,
+1.5 *
+100 /
+Math.max(
+25,
+zoomPercent
+)
+);
+
+ctx.save();
+
+ctx.lineWidth =
+lineWidth;
+
+ctx.strokeStyle =
+root
+? 'rgba(255,217,138,.98)'
+: multi
+? 'rgba(255,121,201,.95)'
+: editorMode ===
+'animation'
+? 'rgba(255,121,201,.95)'
+: 'rgba(209,124,255,.95)';
+
+ctx.fillStyle =
+'#fff7fc';
+
+
+if (
+root ||
+multi
+) {
+ctx.setLineDash(
+[
+8,
+5
+]
+);
+}
+
+
+drawPolygon(
+ctx,
+[
+geometry.tl,
+geometry.tr,
+geometry.br,
+geometry.bl
+]
+);
+
+ctx.setLineDash(
+[]
+);
+
+
+ctx.beginPath();
+
+ctx.moveTo(
+geometry.topCenter.x,
+geometry.topCenter.y
+);
+
+ctx.lineTo(
+geometry.rotate.x,
+geometry.rotate.y
+);
+
+ctx.stroke();
+
+
+for (
+const point
+of [
+geometry.tl,
+geometry.tr,
+geometry.br,
+geometry.bl
+]
+) {
+drawSquareHandle(
+ctx,
+point,
+radius
+);
+}
+
+
+ctx.beginPath();
+
+ctx.arc(
+geometry.rotate.x,
+geometry.rotate.y,
+radius *
+1.08,
+0,
+Math.PI *
+2
+);
+
+ctx.fill();
+
+ctx.stroke();
+
+
+if (
+geometry.pivot
+) {
+ctx.strokeStyle =
+root
+? 'rgba(255,217,138,.98)'
+: 'rgba(255,111,207,.95)';
+
+ctx.beginPath();
+
+ctx.arc(
+geometry.pivot.x,
+geometry.pivot.y,
+radius *
+1.15,
+0,
+Math.PI *
+2
+);
+
+ctx.stroke();
+
+
+ctx.beginPath();
+
+ctx.moveTo(
+geometry.pivot.x -
+radius *
+1.7,
+geometry.pivot.y
+);
+
+ctx.lineTo(
+geometry.pivot.x +
+radius *
+1.7,
+geometry.pivot.y
+);
+
+ctx.moveTo(
+geometry.pivot.x,
+geometry.pivot.y -
+radius *
+1.7
+);
+
+ctx.lineTo(
+geometry.pivot.x,
+geometry.pivot.y +
+radius *
+1.7
+);
+
+ctx.stroke();
+}
+
+ctx.restore();
 }
 
 
 function drawSelectionOverlay() {
-  const ctx =
-    stage.getContext(
-      '2d'
-    );
+if (rootSelected) {
+drawTransformGeometry(
+rootSelectionGeometry(),
+{
+root:
+true
+}
+);
 
-  const radius =
-    handleRadiusCanvas();
+return;
+}
 
-  const lineWidth =
-    Math.max(
-      1,
 
-      1.5 *
-      100 /
-      Math.max(
-        25,
-        zoomPercent
-      )
-    );
+if (
+multiSelection.size >
+1
+) {
+drawTransformGeometry(
+localBoundsGeometry(
+multiLocalBounds()
+),
+{
+multi:
+true
+}
+);
 
-  if (
-    multiSelection.size >
-    1
-  ) {
-    const bounds =
-      multiBounds();
+return;
+}
 
-    if (!bounds) {
-      return;
-    }
 
-    ctx.save();
+const layer =
+engine.selected;
 
-    ctx.lineWidth =
-      lineWidth;
+if (
+!layer ||
+!layer.image
+) {
+return;
+}
 
-    ctx.strokeStyle =
-      'rgba(255,121,201,.95)';
 
-    ctx.fillStyle =
-      '#fff7fc';
+const pose =
+getEffectivePose(
+layer
+);
 
-    ctx.setLineDash(
-      [
-        8,
-        5
-      ]
-    );
+if (
+!pose.visible
+) {
+return;
+}
 
-    ctx.strokeRect(
-      bounds.minX,
-      bounds.minY,
-
-      bounds.maxX -
-      bounds.minX,
-
-      bounds.maxY -
-      bounds.minY
-    );
-
-    ctx.setLineDash(
-      []
-    );
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-      bounds.topCenter.x,
-      bounds.topCenter.y
-    );
-
-    ctx.lineTo(
-      bounds.rotate.x,
-      bounds.rotate.y
-    );
-
-    ctx.stroke();
-
-    for (
-      const point
-      of [
-        bounds.tl,
-        bounds.tr,
-        bounds.br,
-        bounds.bl
-      ]
-    ) {
-      drawSquareHandle(
-        ctx,
-        point,
-        radius
-      );
-    }
-
-    ctx.beginPath();
-
-    ctx.arc(
-      bounds.rotate.x,
-      bounds.rotate.y,
-      radius *
-      1.1,
-      0,
-      Math.PI *
-      2
-    );
-
-    ctx.fill();
-
-    ctx.stroke();
-
-    ctx.restore();
-
-    return;
-  }
-
-  const layer =
-    engine.selected;
-
-  if (
-    !layer ||
-    !layer.image
-  ) {
-    return;
-  }
-
-  const pose =
-    getEffectivePose(
-      layer
-    );
-
-  if (
-    !pose.visible
-  ) {
-    return;
-  }
-
-  const geometry =
-    selectionGeometry(
-      layer
-    );
-
-  if (!geometry) {
-    return;
-  }
-
-  ctx.save();
-
-  ctx.lineWidth =
-    lineWidth;
-
-  ctx.strokeStyle =
-    editorMode ===
-    'animation'
-      ? 'rgba(255,121,201,.95)'
-      : 'rgba(209,124,255,.95)';
-
-  ctx.fillStyle =
-    '#fff7fc';
-
-  ctx.beginPath();
-
-  ctx.moveTo(
-    geometry.tl.x,
-    geometry.tl.y
-  );
-
-  ctx.lineTo(
-    geometry.tr.x,
-    geometry.tr.y
-  );
-
-  ctx.lineTo(
-    geometry.br.x,
-    geometry.br.y
-  );
-
-  ctx.lineTo(
-    geometry.bl.x,
-    geometry.bl.y
-  );
-
-  ctx.closePath();
-
-  ctx.stroke();
-
-  ctx.beginPath();
-
-  ctx.moveTo(
-    geometry.topCenter.x,
-    geometry.topCenter.y
-  );
-
-  ctx.lineTo(
-    geometry.rotate.x,
-    geometry.rotate.y
-  );
-
-  ctx.stroke();
-
-  for (
-    const point
-    of [
-      geometry.tl,
-      geometry.tr,
-      geometry.br,
-      geometry.bl
-    ]
-  ) {
-    drawSquareHandle(
-      ctx,
-      point,
-      radius
-    );
-  }
-
-  ctx.beginPath();
-
-  ctx.arc(
-    geometry.rotate.x,
-    geometry.rotate.y,
-    radius *
-    1.05,
-    0,
-    Math.PI *
-    2
-  );
-
-  ctx.fill();
-
-  ctx.stroke();
-
-  ctx.strokeStyle =
-    'rgba(255,111,207,.95)';
-
-  ctx.beginPath();
-
-  ctx.arc(
-    geometry.pivot.x,
-    geometry.pivot.y,
-    radius *
-    1.15,
-    0,
-    Math.PI *
-    2
-  );
-
-  ctx.stroke();
-
-  ctx.beginPath();
-
-  ctx.moveTo(
-    geometry.pivot.x -
-    radius *
-    1.7,
-    geometry.pivot.y
-  );
-
-  ctx.lineTo(
-    geometry.pivot.x +
-    radius *
-    1.7,
-    geometry.pivot.y
-  );
-
-  ctx.moveTo(
-    geometry.pivot.x,
-    geometry.pivot.y -
-    radius *
-    1.7
-  );
-
-  ctx.lineTo(
-    geometry.pivot.x,
-    geometry.pivot.y +
-    radius *
-    1.7
-  );
-
-  ctx.stroke();
-
-  ctx.restore();
+drawTransformGeometry(
+selectionGeometry(
+layer
+)
+);
 }
 
 
 /* =========================================================
-   SNAPSHOT PARA DRAG
+   MULTISELECCIÓN · TRANSFORMACIONES
    ========================================================= */
 
 function snapshotSelectionForTransform() {
-  const layers =
-    multiSelection.size >
-      1
-      ? selectedMultiLayers()
-      : (
-          engine.selected
-            ? [
-                engine.selected
-              ]
-            : []
-        );
+return selectedMultiLayers()
+.map(
+layer => ({
+id:
+layer.id,
 
-  return layers.map(
-    layer => ({
-      id:
-        layer.id,
+layer: {
+x:
+layer.x,
 
-      layer:
-        {
-          x:
-            layer.x,
+y:
+layer.y,
 
-          y:
-            layer.y,
+scale:
+layer.scale,
 
-          scale:
-            layer.scale,
+rotation:
+layer.rotation,
 
-          rotation:
-            layer.rotation,
+pivotX:
+layer.pivotX,
 
-          pivotX:
-            layer.pivotX,
+pivotY:
+layer.pivotY,
 
-          pivotY:
-            layer.pivotY,
+breathing:
+clonePlain(
+layer.breathing
+)
+},
 
-          breathing:
-            clonePlain(
-              layer.breathing
-            )
-        },
-
-      frames:
-        cloneLayerFrames(
-          layer.id
-        )
-    })
-  );
+frames:
+cloneLayerFrames(
+layer.id
+)
+})
+);
 }
 
-
-/* =========================================================
-   MULTI · MOVER
-   ========================================================= */
 
 function applyMultiMove(
-  snapshot,
-  dx,
-  dy
+snapshot,
+dx,
+dy
 ) {
-  for (
-    const item
-    of snapshot
-  ) {
-    const layer =
-      engine.layers.find(
-        current =>
-          current.id ===
-          item.id
-      );
+for (
+const item
+of snapshot
+) {
+const layer =
+engine.layers.find(
+current =>
+current.id ===
+item.id
+);
 
-    if (!layer) {
-      continue;
-    }
-
-    layer.x =
-      item.layer.x +
-      dx;
-
-    layer.y =
-      item.layer.y +
-      dy;
-
-    const frames =
-      clonePlain(
-        item.frames
-      ) ||
-      [];
-
-    for (
-      const frame
-      of frames
-    ) {
-      if (
-        frame.x !==
-        undefined
-      ) {
-        frame.x =
-          Number(
-            frame.x
-          ) +
-          dx;
-      }
-
-      if (
-        frame.y !==
-        undefined
-      ) {
-        frame.y =
-          Number(
-            frame.y
-          ) +
-          dy;
-      }
-    }
-
-    replaceLayerFrames(
-      layer.id,
-      frames
-    );
-
-    layer.base =
-      engine.snapshot(
-        layer
-      );
-  }
+if (!layer) {
+continue;
 }
 
+layer.x =
+item.layer.x +
+dx;
 
-/* =========================================================
-   MULTI · ESCALAR
-   ========================================================= */
+layer.y =
+item.layer.y +
+dy;
+
+const frames =
+clonePlain(
+item.frames
+) ||
+[];
+
+for (
+const frame
+of frames
+) {
+if (
+frame.x !==
+undefined
+) {
+frame.x =
+Number(
+frame.x
+) +
+dx;
+}
+
+if (
+frame.y !==
+undefined
+) {
+frame.y =
+Number(
+frame.y
+) +
+dy;
+}
+}
+
+replaceLayerFrames(
+layer.id,
+frames
+);
+
+layer.base =
+engine.snapshot(
+layer
+);
+}
+}
+
 
 function applyMultiScale(
-  snapshot,
-  center,
-  factor
+snapshot,
+center,
+factor
 ) {
-  factor =
-    clamp(
-      factor,
-      0.02,
-      30
-    );
+factor =
+clamp(
+factor,
+0.02,
+30
+);
 
-  for (
-    const item
-    of snapshot
-  ) {
-    const layer =
-      engine.layers.find(
-        current =>
-          current.id ===
-          item.id
-      );
+for (
+const item
+of snapshot
+) {
+const layer =
+engine.layers.find(
+current =>
+current.id ===
+item.id
+);
 
-    if (!layer) {
-      continue;
-    }
+if (!layer) {
+continue;
+}
 
-    layer.x =
-      center.x +
-      (
-        item.layer.x -
-        center.x
-      ) *
-      factor;
+layer.x =
+center.x +
+(
+item.layer.x -
+center.x
+) *
+factor;
 
-    layer.y =
-      center.y +
-      (
-        item.layer.y -
-        center.y
-      ) *
-      factor;
+layer.y =
+center.y +
+(
+item.layer.y -
+center.y
+) *
+factor;
 
-    layer.scale =
-      item.layer.scale *
-      factor;
+layer.scale =
+item.layer.scale *
+factor;
 
-    const frames =
-      clonePlain(
-        item.frames
-      ) ||
-      [];
 
-    for (
-      const frame
-      of frames
-    ) {
-      if (
-        frame.x !==
-        undefined
-      ) {
-        frame.x =
-          center.x +
-          (
-            Number(
-              frame.x
-            ) -
-            center.x
-          ) *
-          factor;
-      }
+const frames =
+clonePlain(
+item.frames
+) ||
+[];
 
-      if (
-        frame.y !==
-        undefined
-      ) {
-        frame.y =
-          center.y +
-          (
-            Number(
-              frame.y
-            ) -
-            center.y
-          ) *
-          factor;
-      }
-
-      if (
-        frame.scale !==
-        undefined
-      ) {
-        frame.scale =
-          Number(
-            frame.scale
-          ) *
-          factor;
-      }
-    }
-
-    replaceLayerFrames(
-      layer.id,
-      frames
-    );
-
-    if (
-      item.layer.breathing
-    ) {
-      layer.breathing =
-        clonePlain(
-          item.layer.breathing
-        );
-
-      layer.breathing.y =
-        Number(
-          layer.breathing.y ||
-          0
-        ) *
-        factor;
-    }
-
-    layer.base =
-      engine.snapshot(
-        layer
-      );
-  }
+for (
+const frame
+of frames
+) {
+if (
+frame.x !==
+undefined
+) {
+frame.x =
+center.x +
+(
+Number(
+frame.x
+) -
+center.x
+) *
+factor;
 }
 
 
-/* =========================================================
-   ROTAR PUNTO
-   ========================================================= */
+if (
+frame.y !==
+undefined
+) {
+frame.y =
+center.y +
+(
+Number(
+frame.y
+) -
+center.y
+) *
+factor;
+}
+
+
+if (
+frame.scale !==
+undefined
+) {
+frame.scale =
+Number(
+frame.scale
+) *
+factor;
+}
+}
+
+
+replaceLayerFrames(
+layer.id,
+frames
+);
+
+
+if (
+item.layer.breathing
+) {
+layer.breathing =
+clonePlain(
+item.layer.breathing
+);
+
+layer.breathing.y =
+Number(
+layer.breathing.y ||
+0
+) *
+factor;
+}
+
+
+layer.base =
+engine.snapshot(
+layer
+);
+}
+}
+
 
 function rotatePointAround(
-  x,
-  y,
-  center,
-  radians
+x,
+y,
+center,
+radians
 ) {
-  const dx =
-    x -
-    center.x;
+const dx =
+x -
+center.x;
 
-  const dy =
-    y -
-    center.y;
+const dy =
+y -
+center.y;
 
-  const cos =
-    Math.cos(
-      radians
-    );
+const cos =
+Math.cos(
+radians
+);
 
-  const sin =
-    Math.sin(
-      radians
-    );
+const sin =
+Math.sin(
+radians
+);
 
-  return {
-    x:
-      center.x +
-      dx *
-      cos -
-      dy *
-      sin,
+return {
+x:
+center.x +
+dx * cos -
+dy * sin,
 
-    y:
-      center.y +
-      dx *
-      sin +
-      dy *
-      cos
-  };
+y:
+center.y +
+dx * sin +
+dy * cos
+};
 }
 
-
-/* =========================================================
-   MULTI · ROTAR
-   ========================================================= */
 
 function applyMultiRotation(
-  snapshot,
-  center,
-  degrees
+snapshot,
+center,
+degrees
 ) {
-  const radians =
-    degrees *
-    Math.PI /
-    180;
+const radians =
+degrees *
+Math.PI /
+180;
 
-  for (
-    const item
-    of snapshot
-  ) {
-    const layer =
-      engine.layers.find(
-        current =>
-          current.id ===
-          item.id
-      );
+for (
+const item
+of snapshot
+) {
+const layer =
+engine.layers.find(
+current =>
+current.id ===
+item.id
+);
 
-    if (!layer) {
-      continue;
-    }
+if (!layer) {
+continue;
+}
 
-    const position =
-      rotatePointAround(
-        item.layer.x,
-        item.layer.y,
-        center,
-        radians
-      );
 
-    layer.x =
-      position.x;
+const position =
+rotatePointAround(
+item.layer.x,
+item.layer.y,
+center,
+radians
+);
 
-    layer.y =
-      position.y;
+layer.x =
+position.x;
 
-    layer.rotation =
-      item.layer.rotation +
-      degrees;
+layer.y =
+position.y;
 
-    const frames =
-      clonePlain(
-        item.frames
-      ) ||
-      [];
+layer.rotation =
+item.layer.rotation +
+degrees;
 
-    for (
-      const frame
-      of frames
-    ) {
-      if (
-        frame.x !==
-          undefined &&
-        frame.y !==
-          undefined
-      ) {
-        const point =
-          rotatePointAround(
-            Number(
-              frame.x
-            ),
-            Number(
-              frame.y
-            ),
-            center,
-            radians
-          );
 
-        frame.x =
-          point.x;
+const frames =
+clonePlain(
+item.frames
+) ||
+[];
 
-        frame.y =
-          point.y;
-      }
+for (
+const frame
+of frames
+) {
+if (
+frame.x !==
+undefined &&
+frame.y !==
+undefined
+) {
+const point =
+rotatePointAround(
+Number(
+frame.x
+),
+Number(
+frame.y
+),
+center,
+radians
+);
 
-      if (
-        frame.rotation !==
-        undefined
-      ) {
-        frame.rotation =
-          Number(
-            frame.rotation
-          ) +
-          degrees;
-      }
-    }
+frame.x =
+point.x;
 
-    replaceLayerFrames(
-      layer.id,
-      frames
-    );
+frame.y =
+point.y;
+}
 
-    layer.base =
-      engine.snapshot(
-        layer
-      );
-  }
+
+if (
+frame.rotation !==
+undefined
+) {
+frame.rotation =
+Number(
+frame.rotation
+) +
+degrees;
+}
+}
+
+
+replaceLayerFrames(
+layer.id,
+frames
+);
+
+
+layer.base =
+engine.snapshot(
+layer
+);
+}
 }
 
 
 /* =========================================================
-   CANVAS POINTER DOWN
+   CANVAS · POINTER DOWN
    ========================================================= */
 
 stage.addEventListener(
-  'pointerdown',
-  event => {
-    if (
-      event.button !==
-      0
-    ) {
-      return;
-    }
-
-    animator.pause();
-
-    const point =
-      pointerToCanvas(
-        event
-      );
-
-    if (
-      multiSelection.size >
-      1
-    ) {
-      if (
-        editorMode !==
-        'design'
-      ) {
-        alert(
-          'La transformación de varias capas se hace en Modo Diseño para evitar crear animaciones accidentales.'
-        );
-
-        return;
-      }
-
-      const handle =
-        selectedHandleAtPoint(
-          point
-        );
-
-      if (
-        !handle ||
-        !handle.type
-          .startsWith(
-            'multi-'
-          )
-      ) {
-        return;
-      }
-
-      pushHistory();
-
-      const bounds =
-        handle.bounds;
-
-      const snapshot =
-        snapshotSelectionForTransform();
-
-      const startDistance =
-        Math.max(
-          1,
-
-          Math.hypot(
-            point.x -
-            bounds.center.x,
-
-            point.y -
-            bounds.center.y
-          )
-        );
-
-      const startAngle =
-        Math.atan2(
-          point.y -
-          bounds.center.y,
-
-          point.x -
-          bounds.center.x
-        );
-
-      canvasInteraction = {
-        type:
-          handle.type,
-
-        startPointer:
-          point,
-
-        bounds,
-
-        snapshot,
-
-        startDistance,
-
-        startAngle
-      };
-
-      stage.setPointerCapture(
-        event.pointerId
-      );
-
-      return;
-    }
-
-    if (
-      editorMode ===
-      'animation'
-    ) {
-      timelinePreviewActive =
-        true;
-
-      animator.evaluate(
-        animator.currentTime,
-        false
-      );
-    }
-
-    const handle =
-      selectedHandleAtPoint(
-        point
-      );
-
-    if (handle) {
-      const layer =
-        engine.selected;
-
-      if (!layer) {
-        return;
-      }
-
-      pushHistory();
-
-      const startPose =
-        getEffectivePose(
-          layer
-        );
-
-      stage.setPointerCapture(
-        event.pointerId
-      );
-
-      if (
-        handle.type ===
-        'rotate'
-      ) {
-        canvasInteraction = {
-          type:
-            'rotate',
-
-          layerId:
-            layer.id,
-
-          startPose:
-            clonePlain(
-              startPose
-            ),
-
-          startAngle:
-            Math.atan2(
-              point.y -
-              startPose.y,
-
-              point.x -
-              startPose.x
-            )
-        };
-
-        return;
-      }
-
-      if (
-        handle.type ===
-        'scale'
-      ) {
-        canvasInteraction = {
-          type:
-            'scale',
-
-          layerId:
-            layer.id,
-
-          startPose:
-            clonePlain(
-              startPose
-            ),
-
-          startDistance:
-            Math.max(
-              1,
-
-              Math.hypot(
-                point.x -
-                startPose.x,
-
-                point.y -
-                startPose.y
-              )
-            )
-        };
-
-        return;
-      }
-
-      if (
-        handle.type ===
-        'pivot'
-      ) {
-        if (
-          editorMode !==
-          'design'
-        ) {
-          alert(
-            'El pivote se modifica en Modo Diseño porque pertenece al rig, no a una animación.'
-          );
-
-          return;
-        }
-
-        canvasInteraction = {
-          type:
-            'pivot',
-
-          layerId:
-            layer.id,
-
-          startPose:
-            clonePlain(
-              startPose
-            ),
-
-          startFrames:
-            cloneLayerFrames(
-              layer.id
-            )
-        };
-
-        return;
-      }
-    }
-
-    const hit =
-      layerAtPoint(
-        point.x,
-        point.y
-      );
-
-    if (!hit) {
-      multiSelection.clear();
-
-      engine.selectedId =
-        null;
-
-      renderLayers();
-
-      syncInspector();
-
-      renderTimelineLists();
-
-      syncModeUI();
-
-      engine.draw();
-
-      return;
-    }
-
-    if (
-      engine.selectedId !==
-      hit.id
-    ) {
-      selectSingleLayer(
-        hit.id
-      );
-    }
-
-    const layer =
-      engine.selected;
-
-    pushHistory();
-
-    const startPose =
-      getEffectivePose(
-        layer
-      );
-
-    stage.setPointerCapture(
-      event.pointerId
-    );
-
-    canvasInteraction = {
-      type:
-        'move',
-
-      layerId:
-        layer.id,
-
-      startPointer:
-        point,
-
-      startPose:
-        clonePlain(
-          startPose
-        )
-    };
-  }
+'pointerdown',
+event => {
+if (
+event.button !==
+0
+) {
+return;
+}
+
+animator.pause();
+
+const worldPoint =
+pointerToCanvas(
+event
+);
+
+
+/* ---------------------------------------------------------
+   ROOT
+   --------------------------------------------------------- */
+
+if (rootSelected) {
+if (
+editorMode !==
+'design'
+) {
+setEditorMode(
+'design'
+);
+}
+
+const handle =
+rootHandleAtPoint(
+worldPoint
+);
+
+if (!handle) {
+return;
+}
+
+pushHistory();
+
+const startRoot =
+snapshotRoot();
+
+const pivotWorld =
+rootLocalToWorldPoint(
+{
+x:
+startRoot.pivotX,
+
+y:
+startRoot.pivotY
+},
+startRoot
+);
+
+canvasInteraction = {
+type:
+handle.type,
+
+startRoot,
+
+startPointerWorld:
+worldPoint,
+
+pivotWorld,
+
+startDistance:
+Math.max(
+1,
+Math.hypot(
+worldPoint.x -
+pivotWorld.x,
+worldPoint.y -
+pivotWorld.y
+)
+),
+
+startAngle:
+Math.atan2(
+worldPoint.y -
+pivotWorld.y,
+worldPoint.x -
+pivotWorld.x
+)
+};
+
+stage.setPointerCapture(
+event.pointerId
+);
+
+return;
+}
+
+
+/* ---------------------------------------------------------
+   MULTISELECCIÓN
+   --------------------------------------------------------- */
+
+if (
+multiSelection.size >
+1
+) {
+if (
+editorMode !==
+'design'
+) {
+alert(
+'La transformación de varias capas se hace en Modo Diseño para evitar crear animaciones accidentales.'
+);
+
+return;
+}
+
+const handle =
+multiHandleAtPoint(
+worldPoint
+);
+
+if (!handle) {
+return;
+}
+
+pushHistory();
+
+const localPoint =
+worldToRootLocalPoint(
+worldPoint
+);
+
+const bounds =
+handle.bounds;
+
+canvasInteraction = {
+type:
+handle.type,
+
+startPointerLocal:
+localPoint,
+
+bounds,
+
+snapshot:
+snapshotSelectionForTransform(),
+
+startDistance:
+Math.max(
+1,
+Math.hypot(
+localPoint.x -
+bounds.center.x,
+localPoint.y -
+bounds.center.y
+)
+),
+
+startAngle:
+Math.atan2(
+localPoint.y -
+bounds.center.y,
+localPoint.x -
+bounds.center.x
+)
+};
+
+stage.setPointerCapture(
+event.pointerId
+);
+
+return;
+}
+
+
+/* ---------------------------------------------------------
+   CAPA SIMPLE
+   --------------------------------------------------------- */
+
+if (
+editorMode ===
+'animation'
+) {
+timelinePreviewActive =
+true;
+
+animator.evaluate(
+animator.currentTime,
+false
+);
+}
+
+
+const selectedHandle =
+selectedLayerHandleAtPoint(
+worldPoint
+);
+
+
+if (selectedHandle) {
+const layer =
+engine.selected;
+
+if (!layer) {
+return;
+}
+
+
+if (
+selectedHandle.type ===
+'pivot' &&
+editorMode !==
+'design'
+) {
+alert(
+'El pivote se modifica en Modo Diseño porque pertenece al rig, no a una animación.'
+);
+
+return;
+}
+
+
+pushHistory();
+
+const startPose =
+getEffectivePose(
+layer
+);
+
+const startPointLocal =
+worldToRootLocalPoint(
+worldPoint
+);
+
+canvasInteraction = {
+type:
+selectedHandle.type,
+
+layerId:
+layer.id,
+
+startPose:
+clonePlain(
+startPose
+),
+
+startFrames:
+cloneLayerFrames(
+layer.id
+),
+
+startBreathing:
+clonePlain(
+layer.breathing
+),
+
+startPointerLocal:
+startPointLocal,
+
+startDistance:
+Math.max(
+1,
+Math.hypot(
+startPointLocal.x -
+startPose.x,
+startPointLocal.y -
+startPose.y
+)
+),
+
+startAngle:
+Math.atan2(
+startPointLocal.y -
+startPose.y,
+startPointLocal.x -
+startPose.x
+)
+};
+
+stage.setPointerCapture(
+event.pointerId
+);
+
+return;
+}
+
+
+/* ---------------------------------------------------------
+   CLICK SOBRE CAPA
+   --------------------------------------------------------- */
+
+const hit =
+layerAtPoint(
+worldPoint.x,
+worldPoint.y
+);
+
+if (!hit) {
+rootSelected =
+false;
+
+multiSelection.clear();
+
+engine.selectedId =
+null;
+
+renderLayers();
+
+syncInspector();
+
+renderTimelineLists();
+
+syncModeUI();
+
+engine.draw();
+
+return;
+}
+
+
+if (
+engine.selectedId !==
+hit.id
+) {
+selectSingleLayer(
+hit.id
+);
+}
+
+
+const layer =
+engine.selected;
+
+if (!layer) {
+return;
+}
+
+
+pushHistory();
+
+const startPose =
+getEffectivePose(
+layer
+);
+
+const startPointerLocal =
+worldToRootLocalPoint(
+worldPoint
+);
+
+canvasInteraction = {
+type:
+'move',
+
+layerId:
+layer.id,
+
+startPose:
+clonePlain(
+startPose
+),
+
+startFrames:
+cloneLayerFrames(
+layer.id
+),
+
+startBreathing:
+clonePlain(
+layer.breathing
+),
+
+startPointerLocal
+};
+
+stage.setPointerCapture(
+event.pointerId
+);
+}
 );
 
 
 /* =========================================================
-   CANVAS POINTER MOVE
+   CANVAS · POINTER MOVE
    ========================================================= */
 
 stage.addEventListener(
-  'pointermove',
-  event => {
-    const point =
-      pointerToCanvas(
-        event
-      );
-
-    if (
-      !canvasInteraction
-    ) {
-      const handle =
-        selectedHandleAtPoint(
-          point
-        );
-
-      if (handle) {
-        if (
-          handle.type
-            .includes(
-              'rotate'
-            )
-        ) {
-          stage.style.cursor =
-            'crosshair';
-
-        } else if (
-          handle.type
-            .includes(
-              'scale'
-            )
-        ) {
-          stage.style.cursor =
-            'nwse-resize';
-
-        } else {
-          stage.style.cursor =
-            'move';
-        }
-
-        return;
-      }
-
-      stage.style.cursor =
-        layerAtPoint(
-          point.x,
-          point.y
-        )
-          ? 'move'
-          : 'default';
-
-      return;
-    }
-
-    if (
-      canvasInteraction.type ===
-      'multi-move'
-    ) {
-      const dx =
-        point.x -
-        canvasInteraction
-          .startPointer.x;
-
-      const dy =
-        point.y -
-        canvasInteraction
-          .startPointer.y;
-
-      applyMultiMove(
-        canvasInteraction
-          .snapshot,
-        dx,
-        dy
-      );
-
-      engine.resetRuntime();
-
-      engine.draw();
-
-      drawSelectionOverlay();
-
-      queuePersist();
-
-      return;
-    }
-
-    if (
-      canvasInteraction.type ===
-      'multi-scale'
-    ) {
-      const center =
-        canvasInteraction
-          .bounds.center;
-
-      const currentDistance =
-        Math.max(
-          1,
-
-          Math.hypot(
-            point.x -
-            center.x,
-
-            point.y -
-            center.y
-          )
-        );
-
-      const factor =
-        currentDistance /
-        canvasInteraction
-          .startDistance;
-
-      applyMultiScale(
-        canvasInteraction
-          .snapshot,
-        center,
-        factor
-      );
-
-      engine.resetRuntime();
-
-      engine.draw();
-
-      drawSelectionOverlay();
-
-      queuePersist();
-
-      return;
-    }
-
-    if (
-      canvasInteraction.type ===
-      'multi-rotate'
-    ) {
-      const center =
-        canvasInteraction
-          .bounds.center;
-
-      const angle =
-        Math.atan2(
-          point.y -
-          center.y,
-
-          point.x -
-          center.x
-        );
-
-      let degrees =
-        (
-          angle -
-          canvasInteraction
-            .startAngle
-        ) *
-        180 /
-        Math.PI;
-
-      if (
-        event.shiftKey
-      ) {
-        degrees =
-          Math.round(
-            degrees /
-            15
-          ) *
-          15;
-      }
-
-      applyMultiRotation(
-        canvasInteraction
-          .snapshot,
-        center,
-        degrees
-      );
-
-      engine.resetRuntime();
-
-      engine.draw();
-
-      drawSelectionOverlay();
-
-      queuePersist();
-
-      return;
-    }
-
-    const layer =
-      engine.layers.find(
-        item =>
-          item.id ===
-          canvasInteraction
-            .layerId
-      );
-
-    if (!layer) {
-      return;
-    }
-
-    const startPose =
-      canvasInteraction
-        .startPose;
-
-    const pose =
-      clonePlain(
-        startPose
-      );
-
-    if (
-      canvasInteraction.type ===
-      'move'
-    ) {
-      pose.x =
-        startPose.x +
-        (
-          point.x -
-          canvasInteraction
-            .startPointer.x
-        );
-
-      pose.y =
-        startPose.y +
-        (
-          point.y -
-          canvasInteraction
-            .startPointer.y
-        );
-    }
-
-    else if (
-      canvasInteraction.type ===
-      'scale'
-    ) {
-      const currentDistance =
-        Math.max(
-          1,
-
-          Math.hypot(
-            point.x -
-            startPose.x,
-
-            point.y -
-            startPose.y
-          )
-        );
-
-      const ratio =
-        currentDistance /
-        canvasInteraction
-          .startDistance;
-
-      pose.scale =
-        clamp(
-          startPose.scale *
-          ratio,
-          0.02,
-          20
-        );
-    }
-
-    else if (
-      canvasInteraction.type ===
-      'rotate'
-    ) {
-      const angle =
-        Math.atan2(
-          point.y -
-          startPose.y,
-
-          point.x -
-          startPose.x
-        );
-
-      let degrees =
-        (
-          angle -
-          canvasInteraction
-            .startAngle
-        ) *
-        180 /
-        Math.PI;
-
-      if (
-        event.shiftKey
-      ) {
-        degrees =
-          Math.round(
-            degrees /
-            15
-          ) *
-          15;
-      }
-
-      pose.rotation =
-        startPose.rotation +
-        degrees;
-    }
-
-    else if (
-      canvasInteraction.type ===
-      'pivot'
-    ) {
-      const local =
-        worldPointToImage(
-          layer,
-          point.x,
-          point.y,
-          startPose
-        );
-
-      const newPivotX =
-        local.x;
-
-      const newPivotY =
-        local.y;
-
-      const dx =
-        newPivotX -
-        startPose.pivotX;
-
-      const dy =
-        newPivotY -
-        startPose.pivotY;
-
-      const sx =
-        startPose.scale *
-        (
-          layer.flipX
-            ? -1
-            : 1
-        );
-
-      const sy =
-        startPose.scale *
-        (
-          layer.flipY
-            ? -1
-            : 1
-        );
-
-      const localDX =
-        dx *
-        sx;
-
-      const localDY =
-        dy *
-        sy;
-
-      const angle =
-        startPose.rotation *
-        Math.PI /
-        180;
-
-      const cos =
-        Math.cos(
-          angle
-        );
-
-      const sin =
-        Math.sin(
-          angle
-        );
-
-      pose.x =
-        startPose.x +
-        localDX *
-        cos -
-        localDY *
-        sin;
-
-      pose.y =
-        startPose.y +
-        localDX *
-        sin +
-        localDY *
-        cos;
-
-      pose.pivotX =
-        newPivotX;
-
-      pose.pivotY =
-        newPivotY;
-    }
-
-    if (
-      editorMode ===
-      'design'
-    ) {
-      if (
-        canvasInteraction.type ===
-        'move'
-      ) {
-        const dx =
-          pose.x -
-          startPose.x;
-
-        const dy =
-          pose.y -
-          startPose.y;
-
-        layer.x =
-          pose.x;
-
-        layer.y =
-          pose.y;
-
-        if (
-          !canvasInteraction
-            .startFrames
-        ) {
-          canvasInteraction
-            .startFrames =
-            cloneLayerFrames(
-              layer.id
-            );
-        }
-
-        const originalFrames =
-          clonePlain(
-            canvasInteraction
-              .startFrames
-          ) ||
-          [];
-
-        for (
-          const frame
-          of originalFrames
-        ) {
-          if (
-            frame.x !==
-            undefined
-          ) {
-            frame.x =
-              Number(
-                frame.x
-              ) +
-              dx;
-          }
-
-          if (
-            frame.y !==
-            undefined
-          ) {
-            frame.y =
-              Number(
-                frame.y
-              ) +
-              dy;
-          }
-        }
-
-        replaceLayerFrames(
-          layer.id,
-          originalFrames
-        );
-
-      } else if (
-        canvasInteraction.type ===
-        'scale'
-      ) {
-        if (
-          !canvasInteraction
-            .startFrames
-        ) {
-          canvasInteraction
-            .startFrames =
-            cloneLayerFrames(
-              layer.id
-            );
-        }
-
-        const factor =
-          pose.scale /
-          Math.max(
-            0.0001,
-            startPose.scale
-          );
-
-        layer.scale =
-          pose.scale;
-
-        const frames =
-          clonePlain(
-            canvasInteraction
-              .startFrames
-          ) ||
-          [];
-
-        for (
-          const frame
-          of frames
-        ) {
-          if (
-            frame.scale !==
-            undefined
-          ) {
-            frame.scale =
-              Number(
-                frame.scale
-              ) *
-              factor;
-          }
-        }
-
-        replaceLayerFrames(
-          layer.id,
-          frames
-        );
-
-      } else if (
-        canvasInteraction.type ===
-        'rotate'
-      ) {
-        if (
-          !canvasInteraction
-            .startFrames
-        ) {
-          canvasInteraction
-            .startFrames =
-            cloneLayerFrames(
-              layer.id
-            );
-        }
-
-        const delta =
-          pose.rotation -
-          startPose.rotation;
-
-        layer.rotation =
-          pose.rotation;
-
-        const frames =
-          clonePlain(
-            canvasInteraction
-              .startFrames
-          ) ||
-          [];
-
-        for (
-          const frame
-          of frames
-        ) {
-          if (
-            frame.rotation !==
-            undefined
-          ) {
-            frame.rotation =
-              Number(
-                frame.rotation
-              ) +
-              delta;
-          }
-        }
-
-        replaceLayerFrames(
-          layer.id,
-          frames
-        );
-
-      } else if (
-        canvasInteraction.type ===
-        'pivot'
-      ) {
-        layer.x =
-          pose.x;
-
-        layer.y =
-          pose.y;
-
-        layer.pivotX =
-          pose.pivotX;
-
-        layer.pivotY =
-          pose.pivotY;
-      }
-
-      layer.base =
-        engine.snapshot(
-          layer
-        );
-
-      timelinePreviewActive =
-        false;
-
-      engine.resetRuntime();
-    }
-
-    else {
-      layer.runtime = {
-        ...layer.runtime,
-
-        x:
-          pose.x,
-
-        y:
-          pose.y,
-
-        scale:
-          pose.scale,
-
-        rotation:
-          pose.rotation,
-
-        opacity:
-          pose.opacity,
-
-        pivotX:
-          pose.pivotX,
-
-        pivotY:
-          pose.pivotY,
-
-        visible:
-          pose.visible
-      };
-    }
-
-    syncInspector();
-
-    engine.draw();
-
-    drawSelectionOverlay();
-
-    queuePersist();
-  }
+'pointermove',
+event => {
+const worldPoint =
+pointerToCanvas(
+event
+);
+
+
+/* ---------------------------------------------------------
+   CURSOR
+   --------------------------------------------------------- */
+
+if (!canvasInteraction) {
+if (rootSelected) {
+const handle =
+rootHandleAtPoint(
+worldPoint
+);
+
+stage.style.cursor =
+handle
+? handle.type
+.includes(
+'rotate'
+)
+? 'crosshair'
+: handle.type
+.includes(
+'scale'
+)
+? 'nwse-resize'
+: 'move'
+: 'default';
+
+return;
+}
+
+
+if (
+multiSelection.size >
+1
+) {
+const handle =
+multiHandleAtPoint(
+worldPoint
+);
+
+stage.style.cursor =
+handle
+? handle.type
+.includes(
+'rotate'
+)
+? 'crosshair'
+: handle.type
+.includes(
+'scale'
+)
+? 'nwse-resize'
+: 'move'
+: 'default';
+
+return;
+}
+
+
+const handle =
+selectedLayerHandleAtPoint(
+worldPoint
+);
+
+if (handle) {
+stage.style.cursor =
+handle.type ===
+'rotate'
+? 'crosshair'
+: handle.type ===
+'scale'
+? 'nwse-resize'
+: 'move';
+
+return;
+}
+
+
+stage.style.cursor =
+layerAtPoint(
+worldPoint.x,
+worldPoint.y
+)
+? 'move'
+: 'default';
+
+return;
+}
+
+
+/* ---------------------------------------------------------
+   ROOT
+   --------------------------------------------------------- */
+
+if (
+canvasInteraction.type
+.startsWith(
+'root-'
+)
+) {
+const start =
+canvasInteraction.startRoot;
+
+
+if (
+canvasInteraction.type ===
+'root-move'
+) {
+engine.root.x =
+start.x +
+(
+worldPoint.x -
+canvasInteraction
+.startPointerWorld.x
+);
+
+engine.root.y =
+start.y +
+(
+worldPoint.y -
+canvasInteraction
+.startPointerWorld.y
+);
+}
+
+
+else if (
+canvasInteraction.type ===
+'root-scale'
+) {
+const currentDistance =
+Math.max(
+1,
+Math.hypot(
+worldPoint.x -
+canvasInteraction
+.pivotWorld.x,
+
+worldPoint.y -
+canvasInteraction
+.pivotWorld.y
+)
+);
+
+const factor =
+currentDistance /
+canvasInteraction
+.startDistance;
+
+engine.root.scale =
+clamp(
+start.scale *
+factor,
+0.02,
+30
+);
+}
+
+
+else if (
+canvasInteraction.type ===
+'root-rotate'
+) {
+const angle =
+Math.atan2(
+worldPoint.y -
+canvasInteraction
+.pivotWorld.y,
+
+worldPoint.x -
+canvasInteraction
+.pivotWorld.x
+);
+
+let degrees =
+(
+angle -
+canvasInteraction
+.startAngle
+) *
+180 /
+Math.PI;
+
+if (
+event.shiftKey
+) {
+degrees =
+Math.round(
+degrees /
+15
+) *
+15;
+}
+
+engine.root.rotation =
+start.rotation +
+degrees;
+}
+
+
+else if (
+canvasInteraction.type ===
+'root-pivot'
+) {
+const local =
+worldToRootLocalPoint(
+worldPoint,
+start
+);
+
+applyRootPivotFromStart(
+start,
+local.x,
+local.y
+);
+}
+
+
+engine.root.base =
+snapshotRoot();
+
+timelinePreviewActive =
+false;
+
+engine.resetRuntime();
+
+syncInspector();
+
+engine.draw();
+
+drawSelectionOverlay();
+
+queuePersist();
+
+return;
+}
+
+
+/* ---------------------------------------------------------
+   MULTISELECCIÓN
+   --------------------------------------------------------- */
+
+if (
+canvasInteraction.type
+.startsWith(
+'multi-'
+)
+) {
+const localPoint =
+worldToRootLocalPoint(
+worldPoint
+);
+
+const bounds =
+canvasInteraction.bounds;
+
+
+if (
+canvasInteraction.type ===
+'multi-move'
+) {
+applyMultiMove(
+canvasInteraction.snapshot,
+
+localPoint.x -
+canvasInteraction
+.startPointerLocal.x,
+
+localPoint.y -
+canvasInteraction
+.startPointerLocal.y
+);
+}
+
+
+else if (
+canvasInteraction.type ===
+'multi-scale'
+) {
+const currentDistance =
+Math.max(
+1,
+Math.hypot(
+localPoint.x -
+bounds.center.x,
+
+localPoint.y -
+bounds.center.y
+)
+);
+
+const factor =
+currentDistance /
+canvasInteraction
+.startDistance;
+
+applyMultiScale(
+canvasInteraction.snapshot,
+bounds.center,
+factor
+);
+}
+
+
+else if (
+canvasInteraction.type ===
+'multi-rotate'
+) {
+const angle =
+Math.atan2(
+localPoint.y -
+bounds.center.y,
+
+localPoint.x -
+bounds.center.x
+);
+
+let degrees =
+(
+angle -
+canvasInteraction
+.startAngle
+) *
+180 /
+Math.PI;
+
+if (
+event.shiftKey
+) {
+degrees =
+Math.round(
+degrees /
+15
+) *
+15;
+}
+
+applyMultiRotation(
+canvasInteraction.snapshot,
+bounds.center,
+degrees
+);
+}
+
+
+engine.resetRuntime();
+
+engine.draw();
+
+drawSelectionOverlay();
+
+queuePersist();
+
+return;
+}
+
+
+/* ---------------------------------------------------------
+   CAPA SIMPLE
+   --------------------------------------------------------- */
+
+const layer =
+engine.layers.find(
+item =>
+item.id ===
+canvasInteraction.layerId
+);
+
+if (!layer) {
+return;
+}
+
+
+const startPose =
+canvasInteraction.startPose;
+
+const pose =
+clonePlain(
+startPose
+);
+
+const localPoint =
+worldToRootLocalPoint(
+worldPoint
+);
+
+
+/* MOVE */
+
+if (
+canvasInteraction.type ===
+'move'
+) {
+pose.x =
+startPose.x +
+(
+localPoint.x -
+canvasInteraction
+.startPointerLocal.x
+);
+
+pose.y =
+startPose.y +
+(
+localPoint.y -
+canvasInteraction
+.startPointerLocal.y
+);
+}
+
+
+/* SCALE */
+
+else if (
+canvasInteraction.type ===
+'scale'
+) {
+const currentDistance =
+Math.max(
+1,
+Math.hypot(
+localPoint.x -
+startPose.x,
+
+localPoint.y -
+startPose.y
+)
+);
+
+const ratio =
+currentDistance /
+canvasInteraction
+.startDistance;
+
+pose.scale =
+clamp(
+startPose.scale *
+ratio,
+0.02,
+20
+);
+}
+
+
+/* ROTATE */
+
+else if (
+canvasInteraction.type ===
+'rotate'
+) {
+const angle =
+Math.atan2(
+localPoint.y -
+startPose.y,
+
+localPoint.x -
+startPose.x
+);
+
+let degrees =
+(
+angle -
+canvasInteraction
+.startAngle
+) *
+180 /
+Math.PI;
+
+if (
+event.shiftKey
+) {
+degrees =
+Math.round(
+degrees /
+15
+) *
+15;
+}
+
+pose.rotation =
+startPose.rotation +
+degrees;
+}
+
+
+/* PIVOT */
+
+else if (
+canvasInteraction.type ===
+'pivot'
+) {
+const local =
+worldPointToImage(
+layer,
+worldPoint.x,
+worldPoint.y,
+startPose
+);
+
+const newPivotX =
+local.x;
+
+const newPivotY =
+local.y;
+
+const dx =
+newPivotX -
+startPose.pivotX;
+
+const dy =
+newPivotY -
+startPose.pivotY;
+
+const sx =
+startPose.scale *
+(
+layer.flipX
+? -1
+: 1
+);
+
+const sy =
+startPose.scale *
+(
+layer.flipY
+? -1
+: 1
+);
+
+const localDX =
+dx *
+sx;
+
+const localDY =
+dy *
+sy;
+
+const angle =
+startPose.rotation *
+Math.PI /
+180;
+
+const cos =
+Math.cos(
+angle
+);
+
+const sin =
+Math.sin(
+angle
+);
+
+pose.x =
+startPose.x +
+localDX *
+cos -
+localDY *
+sin;
+
+pose.y =
+startPose.y +
+localDX *
+sin +
+localDY *
+cos;
+
+pose.pivotX =
+newPivotX;
+
+pose.pivotY =
+newPivotY;
+}
+
+
+/* ---------------------------------------------------------
+   MODO DISEÑO
+   --------------------------------------------------------- */
+
+if (
+editorMode ===
+'design'
+) {
+if (
+canvasInteraction.type ===
+'move'
+) {
+const dx =
+pose.x -
+startPose.x;
+
+const dy =
+pose.y -
+startPose.y;
+
+layer.x =
+pose.x;
+
+layer.y =
+pose.y;
+
+const frames =
+clonePlain(
+canvasInteraction
+.startFrames
+) ||
+[];
+
+for (
+const frame
+of frames
+) {
+if (
+frame.x !==
+undefined
+) {
+frame.x =
+Number(
+frame.x
+) +
+dx;
+}
+
+if (
+frame.y !==
+undefined
+) {
+frame.y =
+Number(
+frame.y
+) +
+dy;
+}
+}
+
+replaceLayerFrames(
+layer.id,
+frames
+);
+}
+
+
+else if (
+canvasInteraction.type ===
+'scale'
+) {
+const factor =
+pose.scale /
+Math.max(
+0.0001,
+startPose.scale
+);
+
+layer.scale =
+pose.scale;
+
+const frames =
+clonePlain(
+canvasInteraction
+.startFrames
+) ||
+[];
+
+for (
+const frame
+of frames
+) {
+if (
+frame.scale !==
+undefined
+) {
+frame.scale =
+Number(
+frame.scale
+) *
+factor;
+}
+}
+
+replaceLayerFrames(
+layer.id,
+frames
+);
+
+
+if (
+canvasInteraction
+.startBreathing
+) {
+layer.breathing =
+clonePlain(
+canvasInteraction
+.startBreathing
+);
+
+if (
+layer.breathing?.y !==
+undefined
+) {
+layer.breathing.y =
+Number(
+layer.breathing.y
+) *
+factor;
+}
+}
+}
+
+
+else if (
+canvasInteraction.type ===
+'rotate'
+) {
+const delta =
+pose.rotation -
+startPose.rotation;
+
+layer.rotation =
+pose.rotation;
+
+const frames =
+clonePlain(
+canvasInteraction
+.startFrames
+) ||
+[];
+
+for (
+const frame
+of frames
+) {
+if (
+frame.rotation !==
+undefined
+) {
+frame.rotation =
+Number(
+frame.rotation
+) +
+delta;
+}
+}
+
+replaceLayerFrames(
+layer.id,
+frames
+);
+}
+
+
+else if (
+canvasInteraction.type ===
+'pivot'
+) {
+layer.x =
+pose.x;
+
+layer.y =
+pose.y;
+
+layer.pivotX =
+pose.pivotX;
+
+layer.pivotY =
+pose.pivotY;
+}
+
+
+layer.base =
+engine.snapshot(
+layer
+);
+
+timelinePreviewActive =
+false;
+
+engine.resetRuntime();
+}
+
+
+/* ---------------------------------------------------------
+   MODO ANIMACIÓN
+   --------------------------------------------------------- */
+
+else {
+layer.runtime = {
+...layer.runtime,
+
+x:
+pose.x,
+
+y:
+pose.y,
+
+scale:
+pose.scale,
+
+rotation:
+pose.rotation,
+
+opacity:
+pose.opacity,
+
+pivotX:
+pose.pivotX,
+
+pivotY:
+pose.pivotY,
+
+visible:
+pose.visible
+};
+}
+
+
+syncInspector();
+
+engine.draw();
+
+drawSelectionOverlay();
+
+queuePersist();
+}
 );
 
 
@@ -5530,99 +7026,158 @@ stage.addEventListener(
    ========================================================= */
 
 function endCanvasInteraction() {
-  if (
-    !canvasInteraction
-  ) {
-    return;
-  }
+if (!canvasInteraction) {
+return;
+}
 
-  if (
-    canvasInteraction.type
-      .startsWith(
-        'multi-'
-      )
-  ) {
-    canvasInteraction =
-      null;
 
-    renderLayers();
+if (
+canvasInteraction.type
+.startsWith(
+'root-'
+) ||
+canvasInteraction.type
+.startsWith(
+'multi-'
+)
+) {
+canvasInteraction =
+null;
 
-    syncInspector();
+renderLayers();
 
-    syncModeUI();
+syncInspector();
 
-    engine.draw();
+syncModeUI();
 
-    drawSelectionOverlay();
+engine.draw();
 
-    queuePersist();
+drawSelectionOverlay();
 
-    return;
-  }
+queuePersist();
 
-  const layer =
-    engine.layers.find(
-      item =>
-        item.id ===
-        canvasInteraction
-          .layerId
-    );
+return;
+}
 
-  if (
-    layer &&
-    editorMode ===
-    'animation' &&
-    canvasInteraction.type !==
-    'pivot'
-  ) {
-    const pose =
-      getEffectivePose(
-        layer
-      );
 
-    writePoseKeyframe(
-      layer,
-      pose,
-      animator.currentTime
-    );
+const layer =
+engine.layers.find(
+item =>
+item.id ===
+canvasInteraction.layerId
+);
 
-    timelinePreviewActive =
-      true;
 
-    animator.seek(
-      animator.currentTime
-    );
+/*
+ * Pivote en Diseño:
+ * recalculamos de forma limpia
+ * desde el estado inicial para
+ * conservar la imagen visualmente.
+ */
 
-    renderTimelineLists();
-  }
+if (
+layer &&
+editorMode ===
+'design' &&
+canvasInteraction.type ===
+'pivot'
+) {
+const targetPivotX =
+layer.pivotX;
 
-  canvasInteraction =
-    null;
+const targetPivotY =
+layer.pivotY;
 
-  stage.style.cursor =
-    'default';
+const startPose =
+canvasInteraction.startPose;
 
-  syncInspector();
+layer.x =
+startPose.x;
 
-  renderLayers();
+layer.y =
+startPose.y;
 
-  engine.draw();
+layer.scale =
+startPose.scale;
 
-  drawSelectionOverlay();
+layer.rotation =
+startPose.rotation;
 
-  queuePersist();
+layer.pivotX =
+startPose.pivotX;
+
+layer.pivotY =
+startPose.pivotY;
+
+replaceLayerFrames(
+layer.id,
+canvasInteraction.startFrames
+);
+
+changeLayerPivotKeepingVisual(
+layer,
+targetPivotX,
+targetPivotY
+);
+}
+
+
+if (
+layer &&
+editorMode ===
+'animation' &&
+canvasInteraction.type !==
+'pivot'
+) {
+const pose =
+getEffectivePose(
+layer
+);
+
+writePoseKeyframe(
+layer,
+pose,
+animator.currentTime
+);
+
+timelinePreviewActive =
+true;
+
+animator.seek(
+animator.currentTime
+);
+
+renderTimelineLists();
+}
+
+
+canvasInteraction =
+null;
+
+stage.style.cursor =
+'default';
+
+syncInspector();
+
+renderLayers();
+
+engine.draw();
+
+drawSelectionOverlay();
+
+queuePersist();
 }
 
 
 stage.addEventListener(
-  'pointerup',
-  endCanvasInteraction
+'pointerup',
+endCanvasInteraction
 );
 
 
 stage.addEventListener(
-  'pointercancel',
-  endCanvasInteraction
+'pointercancel',
+endCanvasInteraction
 );
 
 
@@ -5631,329 +7186,341 @@ stage.addEventListener(
    ========================================================= */
 
 function animationDuration() {
-  return Math.max(
-    0.5,
-
-    Number(
-      engine.animation
-        .duration
-    ) ||
-    10
-  );
+return Math.max(
+0.5,
+Number(
+engine.animation.duration
+) ||
+10
+);
 }
 
 
 function syncTimelineUI() {
-  const duration =
-    animationDuration();
+const duration =
+animationDuration();
 
-  q('#timelineDuration')
-    .value =
-    duration;
+q('#timelineDuration')
+.value =
+duration;
 
-  q('#timelineScrub')
-    .max =
-    duration;
+q('#timelineScrub')
+.max =
+duration;
 
-  q('#timelineScrub')
-    .value =
-    clamp(
-      animator.currentTime,
-      0,
-      duration
-    );
+q('#timelineScrub')
+.value =
+clamp(
+animator.currentTime,
+0,
+duration
+);
 
-  q('#timelineLoop')
-    .checked =
-    engine.animation.loop !==
-    false;
+q('#timelineLoop')
+.checked =
+engine.animation.loop !==
+false;
 
-  q('#timelineRuntime')
-    .checked =
-    engine.animation
-      .playOnRuntime !==
-    false;
+q('#timelineRuntime')
+.checked =
+engine.animation
+.playOnRuntime !==
+false;
 
-  q('#timelineTime')
-    .textContent =
-    `${animator.currentTime.toFixed(2)} s`;
+q('#timelineTime')
+.textContent =
+`${animator.currentTime.toFixed(2)} s`;
 
-  q('#timelinePlay')
-    .textContent =
-    animator.playing
-      ? '⏸'
-      : '▶';
+q('#timelinePlay')
+.textContent =
+animator.playing
+? '⏸'
+: '▶';
 }
 
 
-/* =========================================================
-   SELECCIÓN DE ANIMACIÓN
-   ========================================================= */
-
 function updateSelectedAnimationLabel() {
-  const label =
-    q('#selectedAnimationLabel');
+const label =
+q('#selectedAnimationLabel');
 
-  if (
-    !selectedAnimationRef
-  ) {
-    label.textContent =
-      'Ninguna animación seleccionada';
+if (
+!selectedAnimationRef
+) {
+label.textContent =
+rootSelected
+? 'Mikatsune Root · animación pendiente'
+: 'Ninguna animación seleccionada';
 
-    return;
-  }
+return;
+}
 
-  label.textContent =
-    selectedAnimationRef
-      .label ||
-    'Animación seleccionada';
+label.textContent =
+selectedAnimationRef.label ||
+'Animación seleccionada';
 }
 
 
 function keyChip(
-  label,
-  time,
-  kind,
-  reference
+label,
+time,
+kind,
+reference
 ) {
-  const button =
-    document.createElement(
-      'button'
-    );
+const button =
+document.createElement(
+'button'
+);
 
-  const duration =
-    animationDuration();
+const duration =
+animationDuration();
 
-  const left =
-    clamp(
-      (
-        time /
-        duration
-      ) *
-      100,
-      0,
-      100
-    );
+const left =
+clamp(
+(
+time /
+duration
+) *
+100,
+0,
+100
+);
 
-  button.type =
-    'button';
+button.type =
+'button';
 
-  button.title =
-    `${label} · ${time.toFixed(2)} s`;
+button.title =
+`${label} · ${time.toFixed(2)} s`;
 
-  button.textContent =
-    kind ===
-    'state'
-      ? '◇'
-      : '◆';
+button.textContent =
+kind ===
+'state'
+? '◇'
+: '◆';
 
-  button.style.cssText = [
-    'position:absolute',
-    `left:calc(${left}% - 9px)`,
-    'top:7px',
-    'width:18px',
-    'height:22px',
-    'padding:0',
-    'margin:0',
-    'font-size:10px',
-    'z-index:2'
-  ].join(';');
+button.style.cssText = [
+'position:absolute',
+`left:calc(${left}% - 9px)`,
+'top:7px',
+'width:18px',
+'height:22px',
+'padding:0',
+'margin:0',
+'font-size:10px',
+'z-index:2'
+]
+.join(
+';'
+);
 
-  if (
-    selectedAnimationRef &&
-    selectedAnimationRef.id ===
-      reference.id &&
-    selectedAnimationRef.kind ===
-      reference.kind
-  ) {
-    button.style.borderColor =
-      '#ff79c9';
 
-    button.style.boxShadow =
-      '0 0 0 2px rgba(255,121,201,.2)';
-  }
+if (
+selectedAnimationRef &&
+selectedAnimationRef.id ===
+reference.id &&
+selectedAnimationRef.kind ===
+reference.kind
+) {
+button.style.borderColor =
+'#ff79c9';
 
-  button.addEventListener(
-    'click',
-    () => {
-      selectedAnimationRef = {
-        ...reference,
-        label
-      };
-
-      updateSelectedAnimationLabel();
-
-      timelinePreviewActive =
-        true;
-
-      animator.pause();
-
-      animator.seek(
-        time
-      );
-
-      if (
-        editorMode !==
-        'animation'
-      ) {
-        setEditorMode(
-          'animation'
-        );
-      }
-
-      syncTimelineUI();
-
-      renderTimelineLists();
-
-      syncInspector();
-    }
-  );
-
-  return button;
+button.style.boxShadow =
+'0 0 0 2px rgba(255,121,201,.2)';
 }
 
 
-/* =========================================================
-   DIBUJAR TIMELINE
-   ========================================================= */
+button.addEventListener(
+'click',
+() => {
+rootSelected =
+false;
+
+selectedAnimationRef = {
+...reference,
+
+label
+};
+
+updateSelectedAnimationLabel();
+
+timelinePreviewActive =
+true;
+
+animator.pause();
+
+animator.seek(
+time
+);
+
+if (
+editorMode !==
+'animation'
+) {
+setEditorMode(
+'animation'
+);
+}
+
+syncTimelineUI();
+
+renderTimelineLists();
+
+syncInspector();
+}
+);
+
+return button;
+}
+
+
+function emptyTrack(
+box,
+text
+) {
+const empty =
+document.createElement(
+'span'
+);
+
+empty.textContent =
+text;
+
+empty.style.cssText =
+'color:#766985;font-size:9px;position:absolute;left:8px;top:10px;';
+
+box.appendChild(
+empty
+);
+}
+
 
 function renderTimelineLists() {
-  const layerBox =
-    q('#layerKeyframeList');
+const layerBox =
+q('#layerKeyframeList');
 
-  const stateBox =
-    q('#stateKeyframeList');
+const stateBox =
+q('#stateKeyframeList');
 
-  layerBox.innerHTML =
-    '';
+layerBox.innerHTML =
+'';
 
-  stateBox.innerHTML =
-    '';
+stateBox.innerHTML =
+'';
 
-  const selected =
-    engine.selected;
 
-  const layerFrames =
-    selected
-      ? getLayerFrames(
-          selected.id
-        )
-      : [];
+if (rootSelected) {
+emptyTrack(
+layerBox,
+'Root listo · animación será el siguiente paso'
+);
 
-  if (
-    !layerFrames.length
-  ) {
-    const empty =
-      document.createElement(
-        'span'
-      );
+} else {
+const selected =
+engine.selected;
 
-    empty.textContent =
-      'Sin keyframes';
+const layerFrames =
+selected
+? getLayerFrames(
+selected.id
+)
+: [];
 
-    empty.style.cssText =
-      'color:#766985;font-size:9px;position:absolute;left:8px;top:10px;';
+if (
+!layerFrames.length
+) {
+emptyTrack(
+layerBox,
+'Sin keyframes'
+);
 
-    layerBox.appendChild(
-      empty
-    );
+} else {
+for (
+const keyframe
+of [
+...layerFrames
+]
+.sort(
+(a, b) =>
+a.time -
+b.time
+)
+) {
+layerBox.appendChild(
+keyChip(
+`${selected.name} · Transformación`,
 
-  } else {
-    for (
-      const keyframe
-      of [...layerFrames]
-        .sort(
-          (a, b) =>
-            a.time -
-            b.time
-        )
-    ) {
-      layerBox.appendChild(
-        keyChip(
-          selected
-            ? `${selected.name} · Transformación`
-            : 'Transformación',
+Number(
+keyframe.time
+),
 
-          Number(
-            keyframe.time
-          ),
+'layer',
 
-          'layer',
+{
+kind:
+'layer-keyframe',
 
-          {
-            kind:
-              'layer-keyframe',
+layerId:
+selected.id,
 
-            layerId:
-              selected.id,
+id:
+keyframe.id
+}
+)
+);
+}
+}
+}
 
-            id:
-              keyframe.id
-          }
-        )
-      );
-    }
-  }
 
-  const stateFrames =
-    [
-      ...(
-        engine.animation
-          .stateKeyframes ||
-        []
-      )
-    ].sort(
-      (a, b) =>
-        a.time -
-        b.time
-    );
+const stateFrames =
+[
+...(
+engine.animation
+.stateKeyframes ||
+[]
+)
+]
+.sort(
+(a, b) =>
+a.time -
+b.time
+);
 
-  if (
-    !stateFrames.length
-  ) {
-    const empty =
-      document.createElement(
-        'span'
-      );
+if (
+!stateFrames.length
+) {
+emptyTrack(
+stateBox,
+'Sin estados'
+);
 
-    empty.textContent =
-      'Sin estados';
+} else {
+for (
+const keyframe
+of stateFrames
+) {
+stateBox.appendChild(
+keyChip(
+`${keyframe.group} / ${keyframe.state}`,
 
-    empty.style.cssText =
-      'color:#766985;font-size:9px;position:absolute;left:8px;top:10px;';
+Number(
+keyframe.time
+),
 
-    stateBox.appendChild(
-      empty
-    );
+'state',
 
-  } else {
-    for (
-      const keyframe
-      of stateFrames
-    ) {
-      stateBox.appendChild(
-        keyChip(
-          `${keyframe.group} / ${keyframe.state}`,
+{
+kind:
+'state-keyframe',
 
-          Number(
-            keyframe.time
-          ),
+id:
+keyframe.id
+}
+)
+);
+}
+}
 
-          'state',
-
-          {
-            kind:
-              'state-keyframe',
-
-            id:
-              keyframe.id
-          }
-        )
-      );
-    }
-  }
-
-  updateSelectedAnimationLabel();
+updateSelectedAnimationLabel();
 }
 
 
@@ -5962,772 +7529,782 @@ function renderTimelineLists() {
    ========================================================= */
 
 animator.onTimeChange =
-  time => {
-    q('#timelineScrub')
-      .value =
-      time;
+time => {
+q('#timelineScrub')
+.value =
+time;
 
-    q('#timelineTime')
-      .textContent =
-      `${time.toFixed(2)} s`;
+q('#timelineTime')
+.textContent =
+`${time.toFixed(2)} s`;
 
-    if (
-      editorMode ===
-      'animation'
-    ) {
-      syncInspector();
-    }
-  };
+if (
+editorMode ===
+'animation' &&
+!rootSelected
+) {
+syncInspector();
+}
+};
 
 
 animator.onPlayChange =
-  () => {
-    syncTimelineUI();
-  };
+() => {
+syncTimelineUI();
+};
 
 
 q('#timelineDuration')
-  .addEventListener(
-    'change',
-    event => {
-      pushHistory();
+.addEventListener(
+'change',
+event => {
+pushHistory();
 
-      animator.setDuration(
-        event.target.value
-      );
+animator.setDuration(
+event.target.value
+);
 
-      syncTimelineUI();
+syncTimelineUI();
 
-      renderTimelineLists();
+renderTimelineLists();
 
-      queuePersist();
-    }
-  );
+queuePersist();
+}
+);
 
 
 q('#timelineLoop')
-  .addEventListener(
-    'change',
-    event => {
-      engine.animation.loop =
-        event.target.checked;
+.addEventListener(
+'change',
+event => {
+engine.animation.loop =
+event.target.checked;
 
-      queuePersist();
-    }
-  );
+queuePersist();
+}
+);
 
 
 q('#timelineRuntime')
-  .addEventListener(
-    'change',
-    event => {
-      engine.animation
-        .playOnRuntime =
-        event.target.checked;
+.addEventListener(
+'change',
+event => {
+engine.animation
+.playOnRuntime =
+event.target.checked;
 
-      queuePersist();
-    }
-  );
+queuePersist();
+}
+);
 
 
 q('#timelineScrub')
-  .addEventListener(
-    'input',
-    event => {
-      timelinePreviewActive =
-        true;
+.addEventListener(
+'input',
+event => {
+timelinePreviewActive =
+true;
 
-      animator.pause();
+animator.pause();
 
-      animator.seek(
-        Number(
-          event.target.value
-        )
-      );
+animator.seek(
+Number(
+event.target.value
+)
+);
 
-      syncTimelineUI();
+syncTimelineUI();
 
-      syncInspector();
+syncInspector();
 
-      engine.draw();
+engine.draw();
 
-      drawSelectionOverlay();
-    }
-  );
+drawSelectionOverlay();
+}
+);
 
 
 q('#timelinePlay')
-  .addEventListener(
-    'click',
-    () => {
-      timelinePreviewActive =
-        true;
+.addEventListener(
+'click',
+() => {
+timelinePreviewActive =
+true;
 
-      if (
-        animator.playing
-      ) {
-        animator.pause();
+if (
+animator.playing
+) {
+animator.pause();
 
-      } else {
-        if (
-          animator.currentTime >=
-          animationDuration()
-        ) {
-          animator.seek(
-            0
-          );
-        }
+} else {
+if (
+animator.currentTime >=
+animationDuration()
+) {
+animator.seek(
+0
+);
+}
 
-        animator.play();
-      }
+animator.play();
+}
 
-      syncTimelineUI();
-    }
-  );
+syncTimelineUI();
+}
+);
 
 
 q('#timelineStop')
-  .addEventListener(
-    'click',
-    () => {
-      animator.stop();
+.addEventListener(
+'click',
+() => {
+animator.stop();
 
-      timelinePreviewActive =
-        editorMode ===
-        'animation';
+timelinePreviewActive =
+editorMode ===
+'animation';
 
-      if (
-        editorMode ===
-        'design'
-      ) {
-        engine.resetRuntime();
-      }
+if (
+editorMode ===
+'design'
+) {
+engine.resetRuntime();
+}
 
-      engine.draw();
+engine.draw();
 
-      drawSelectionOverlay();
+drawSelectionOverlay();
 
-      syncTimelineUI();
+syncTimelineUI();
 
-      syncInspector();
+syncInspector();
 
-      renderTimelineLists();
-    }
-  );
+renderTimelineLists();
+}
+);
 
 
 /* =========================================================
-   CREAR KEYFRAME
+   CREAR / BORRAR KEYFRAMES
    ========================================================= */
 
 q('#addKeyframe')
-  .addEventListener(
-    'click',
-    () => {
-      const layer =
-        engine.selected;
+.addEventListener(
+'click',
+() => {
+if (rootSelected) {
+alert(
+'El Root ya está preparado, pero su pista de keyframes la conectaremos en el siguiente paso.'
+);
 
-      if (!layer) {
-        alert(
-          'Selecciona una capa primero.'
-        );
-
-        return;
-      }
-
-      pushHistory();
-
-      animator.evaluate(
-        animator.currentTime,
-        false
-      );
-
-      const pose =
-        getEffectivePose(
-          layer
-        );
-
-      const keyframe =
-        writePoseKeyframe(
-          layer,
-          pose,
-          animator.currentTime
-        );
-
-      selectedAnimationRef = {
-        kind:
-          'layer-keyframe',
-
-        layerId:
-          layer.id,
-
-        id:
-          keyframe.id,
-
-        label:
-          `${layer.name} · Transformación`
-      };
-
-      setEditorMode(
-        'animation'
-      );
-
-      animator.seek(
-        animator.currentTime
-      );
-
-      renderTimelineLists();
-
-      queuePersist();
-    }
-  );
-
-
-/* =========================================================
-   CREAR ESTADO
-   ========================================================= */
-
-q('#addStateKeyframe')
-  .addEventListener(
-    'click',
-    () => {
-      const layer =
-        engine.selected;
-
-      if (
-        !layer?.group
-          ?.trim() ||
-        !layer.state
-          ?.trim()
-      ) {
-        alert(
-          'La capa necesita Grupo y Estado.'
-        );
-
-        return;
-      }
-
-      pushHistory();
-
-      const keyframe =
-        animator.addStateKeyframe(
-          layer.group.trim(),
-          layer.state.trim(),
-          animator.currentTime
-        );
-
-      if (
-        keyframe
-      ) {
-        selectedAnimationRef = {
-          kind:
-            'state-keyframe',
-
-          id:
-            keyframe.id,
-
-          label:
-            `${layer.group.trim()} / ${layer.state.trim()}`
-        };
-      }
-
-      setEditorMode(
-        'animation'
-      );
-
-      animator.seek(
-        animator.currentTime
-      );
-
-      renderTimelineLists();
-
-      queuePersist();
-    }
-  );
-
-
-/* =========================================================
-   BORRAR KEYFRAME EXACTO
-   ========================================================= */
-
-function deleteAnimationReference(
-  reference
-) {
-  if (!reference) {
-    return false;
-  }
-
-  if (
-    reference.kind ===
-    'layer-keyframe'
-  ) {
-    const list =
-      getLayerFrames(
-        reference.layerId
-      );
-
-    const index =
-      list.findIndex(
-        item =>
-          item.id ===
-          reference.id
-      );
-
-    if (
-      index >=
-      0
-    ) {
-      list.splice(
-        index,
-        1
-      );
-
-      return true;
-    }
-  }
-
-  if (
-    reference.kind ===
-    'state-keyframe'
-  ) {
-    const list =
-      engine.animation
-        .stateKeyframes ||
-      [];
-
-    const index =
-      list.findIndex(
-        item =>
-          item.id ===
-          reference.id
-      );
-
-    if (
-      index >=
-      0
-    ) {
-      list.splice(
-        index,
-        1
-      );
-
-      return true;
-    }
-  }
-
-  return false;
+return;
 }
 
 
-/* =========================================================
-   ELIMINAR KEY
-   ========================================================= */
+const layer =
+engine.selected;
+
+if (!layer) {
+alert(
+'Selecciona una capa primero.'
+);
+
+return;
+}
+
+
+pushHistory();
+
+animator.evaluate(
+animator.currentTime,
+false
+);
+
+const pose =
+getEffectivePose(
+layer
+);
+
+const keyframe =
+writePoseKeyframe(
+layer,
+pose,
+animator.currentTime
+);
+
+selectedAnimationRef = {
+kind:
+'layer-keyframe',
+
+layerId:
+layer.id,
+
+id:
+keyframe.id,
+
+label:
+`${layer.name} · Transformación`
+};
+
+setEditorMode(
+'animation'
+);
+
+animator.seek(
+animator.currentTime
+);
+
+renderTimelineLists();
+
+queuePersist();
+}
+);
+
+
+q('#addStateKeyframe')
+.addEventListener(
+'click',
+() => {
+if (rootSelected) {
+alert(
+'Los estados pertenecen a capas, no al Root.'
+);
+
+return;
+}
+
+
+const layer =
+engine.selected;
+
+if (
+!layer?.group
+?.trim() ||
+!layer.state
+?.trim()
+) {
+alert(
+'La capa necesita Grupo y Estado.'
+);
+
+return;
+}
+
+
+pushHistory();
+
+const keyframe =
+animator.addStateKeyframe(
+layer.group.trim(),
+layer.state.trim(),
+animator.currentTime
+);
+
+if (keyframe) {
+selectedAnimationRef = {
+kind:
+'state-keyframe',
+
+id:
+keyframe.id,
+
+label:
+`${layer.group.trim()} / ${layer.state.trim()}`
+};
+}
+
+setEditorMode(
+'animation'
+);
+
+animator.seek(
+animator.currentTime
+);
+
+renderTimelineLists();
+
+queuePersist();
+}
+);
+
+
+function deleteAnimationReference(
+reference
+) {
+if (!reference) {
+return false;
+}
+
+
+if (
+reference.kind ===
+'layer-keyframe'
+) {
+const list =
+getLayerFrames(
+reference.layerId
+);
+
+const index =
+list.findIndex(
+item =>
+item.id ===
+reference.id
+);
+
+if (
+index >=
+0
+) {
+list.splice(
+index,
+1
+);
+
+return true;
+}
+}
+
+
+if (
+reference.kind ===
+'state-keyframe'
+) {
+const list =
+engine.animation
+.stateKeyframes ||
+[];
+
+const index =
+list.findIndex(
+item =>
+item.id ===
+reference.id
+);
+
+if (
+index >=
+0
+) {
+list.splice(
+index,
+1
+);
+
+return true;
+}
+}
+
+return false;
+}
+
 
 q('#deleteKeyframe')
-  .addEventListener(
-    'click',
-    () => {
-      pushHistory();
+.addEventListener(
+'click',
+() => {
+if (rootSelected) {
+return;
+}
 
-      let removed =
-        false;
+pushHistory();
 
-      if (
-        selectedAnimationRef
-      ) {
-        removed =
-          deleteAnimationReference(
-            selectedAnimationRef
-          );
-      }
-
-      if (!removed) {
-        const layer =
-          engine.selected;
-
-        if (layer) {
-          removed =
-            animator
-              .removeNearestLayerKeyframe(
-                layer.id,
-                animator.currentTime,
-                0.25
-              );
-        }
-
-        if (!removed) {
-          removed =
-            animator
-              .removeNearestStateKeyframe(
-                animator.currentTime,
-                0.25
-              );
-        }
-      }
-
-      if (!removed) {
-        alert(
-          'No hay ningún keyframe seleccionado o suficientemente cerca.'
-        );
-
-        return;
-      }
-
-      selectedAnimationRef =
-        null;
-
-      updateSelectedAnimationLabel();
-
-      animator.seek(
-        animator.currentTime
-      );
-
-      renderTimelineLists();
-
-      queuePersist();
-    }
-  );
+let removed =
+false;
 
 
-/* =========================================================
-   BORRAR ANIMACIÓN SELECCIONADA
-   ========================================================= */
+if (
+selectedAnimationRef
+) {
+removed =
+deleteAnimationReference(
+selectedAnimationRef
+);
+}
+
+
+if (!removed) {
+const layer =
+engine.selected;
+
+if (layer) {
+removed =
+animator
+.removeNearestLayerKeyframe(
+layer.id,
+animator.currentTime,
+0.25
+);
+}
+
+if (!removed) {
+removed =
+animator
+.removeNearestStateKeyframe(
+animator.currentTime,
+0.25
+);
+}
+}
+
+
+if (!removed) {
+alert(
+'No hay ningún keyframe seleccionado o suficientemente cerca.'
+);
+
+return;
+}
+
+
+selectedAnimationRef =
+null;
+
+updateSelectedAnimationLabel();
+
+animator.seek(
+animator.currentTime
+);
+
+renderTimelineLists();
+
+queuePersist();
+}
+);
+
 
 q('#deleteSelectedAnimation')
-  .addEventListener(
-    'click',
-    () => {
-      if (
-        !selectedAnimationRef
-      ) {
-        alert(
-          'Selecciona primero un ◆ o ◇ en la Timeline.'
-        );
+.addEventListener(
+'click',
+() => {
+if (
+!selectedAnimationRef
+) {
+alert(
+'Selecciona primero un ◆ o ◇ en la Timeline.'
+);
 
-        return;
-      }
+return;
+}
 
-      pushHistory();
+pushHistory();
 
-      const removed =
-        deleteAnimationReference(
-          selectedAnimationRef
-        );
+const removed =
+deleteAnimationReference(
+selectedAnimationRef
+);
 
-      if (!removed) {
-        alert(
-          'Esa animación ya no existe.'
-        );
+if (!removed) {
+alert(
+'Esa animación ya no existe.'
+);
 
-        selectedAnimationRef =
-          null;
+selectedAnimationRef =
+null;
 
-        updateSelectedAnimationLabel();
+updateSelectedAnimationLabel();
 
-        return;
-      }
+return;
+}
 
-      selectedAnimationRef =
-        null;
+selectedAnimationRef =
+null;
 
-      animator.seek(
-        animator.currentTime
-      );
+animator.seek(
+animator.currentTime
+);
 
-      renderTimelineLists();
+renderTimelineLists();
 
-      queuePersist();
-    }
-  );
+queuePersist();
+}
+);
 
-
-/* =========================================================
-   BORRAR ANIMACIONES DE UNA CAPA
-   ========================================================= */
 
 q('#deleteLayerAnimation')
-  .addEventListener(
-    'click',
-    () => {
-      const layer =
-        engine.selected;
+.addEventListener(
+'click',
+() => {
+if (rootSelected) {
+alert(
+'Selecciona una capa hija para borrar sus animaciones.'
+);
 
-      if (!layer) {
-        alert(
-          'Selecciona una capa primero.'
-        );
+return;
+}
 
-        return;
-      }
 
-      const frames =
-        getLayerFrames(
-          layer.id
-        );
+const layer =
+engine.selected;
 
-      if (
-        !frames.length
-      ) {
-        alert(
-          'Esta capa no tiene keyframes de transformación.'
-        );
+if (!layer) {
+alert(
+'Selecciona una capa primero.'
+);
 
-        return;
-      }
+return;
+}
 
-      const confirmed =
-        confirm(
-          `¿Eliminar todos los keyframes de "${layer.name}"?\n\nLas demás capas no se modificarán.`
-        );
 
-      if (!confirmed) {
-        return;
-      }
+const frames =
+getLayerFrames(
+layer.id
+);
 
-      pushHistory();
+if (
+!frames.length
+) {
+alert(
+'Esta capa no tiene keyframes de transformación.'
+);
 
-      engine.animation
-        .layerKeyframes[
-          layer.id
-        ] =
-        [];
+return;
+}
 
-      selectedAnimationRef =
-        null;
 
-      timelinePreviewActive =
-        false;
+const confirmed =
+confirm(
+`¿Eliminar todos los keyframes de "${layer.name}"?\n\nLas demás capas no se modificarán.`
+);
 
-      engine.resetRuntime();
+if (!confirmed) {
+return;
+}
 
-      engine.draw();
 
-      drawSelectionOverlay();
+pushHistory();
 
-      renderTimelineLists();
+engine.animation
+.layerKeyframes[
+layer.id
+] =
+[];
 
-      queuePersist();
-    }
-  );
+selectedAnimationRef =
+null;
+
+timelinePreviewActive =
+false;
+
+engine.resetRuntime();
+
+engine.draw();
+
+drawSelectionOverlay();
+
+renderTimelineLists();
+
+queuePersist();
+}
+);
 
 
 /* =========================================================
-   ACTIVAR / DESACTIVAR RESPIRACIÓN + TICS
-
-   Ahora el mismo botón funciona
-   en ambas direcciones.
+   ACTIVAR / DESACTIVAR MOVIMIENTO
    ========================================================= */
 
 q('#disableLayerMotion')
-  .addEventListener(
-    'click',
-    () => {
-      const layer =
-        engine.selected;
+.addEventListener(
+'click',
+() => {
+if (rootSelected) {
+return;
+}
 
-      if (!layer) {
-        alert(
-          'Selecciona una capa primero.'
-        );
+const layer =
+engine.selected;
 
-        return;
-      }
+if (!layer) {
+alert(
+'Selecciona una capa primero.'
+);
 
-      pushHistory();
+return;
+}
 
-      if (
-        !layer.organic
-      ) {
-        layer.organic = {
-          enabled:
-            false,
+pushHistory();
 
-          minInterval:
-            2,
+if (
+!layer.organic
+) {
+layer.organic = {
+enabled:
+false,
 
-          maxInterval:
-            3.5,
+minInterval:
+2,
 
-          amount:
-            2,
+maxInterval:
+3.5,
 
-          duration:
-            0.28,
+amount:
+2,
 
-          doubleChance:
-            0.2
-        };
-      }
+duration:
+0.28,
 
-      const breathing =
-        animator.getBreathingConfig(
-          layer
-        );
+doubleChance:
+0.2
+};
+}
 
-      const currentlyActive =
-        layerMotionIsActive(
-          layer
-        );
+const breathing =
+animator.getBreathingConfig(
+layer
+);
 
-      if (
-        currentlyActive
-      ) {
-        /*
-         * APAGAR.
-         *
-         * Solo cambiamos enabled.
-         * Los parámetros quedan intactos.
-         */
+const currentlyActive =
+layerMotionIsActive(
+layer
+);
 
-        layer.organic.enabled =
-          false;
+if (currentlyActive) {
+layer.organic.enabled =
+false;
 
-        layer.breathing = {
-          ...breathing,
+layer.breathing = {
+...breathing,
 
-          enabled:
-            false
-        };
+enabled:
+false
+};
 
-      } else {
-        /*
-         * ENCENDER.
-         *
-         * Recuperamos los mismos
-         * valores guardados.
-         */
+} else {
+layer.organic.enabled =
+true;
 
-        layer.organic.enabled =
-          true;
+layer.breathing = {
+...breathing,
 
-        layer.breathing = {
-          ...breathing,
+enabled:
+true
+};
+}
 
-          enabled:
-            true
-        };
-      }
+layer._organicRuntime =
+null;
 
-      layer._organicRuntime =
-        null;
+animator.resetOrganic();
 
-      animator.resetOrganic();
+timelinePreviewActive =
+false;
 
-      timelinePreviewActive =
-        false;
+engine.resetRuntime();
 
-      engine.resetRuntime();
+engine.draw();
 
-      engine.draw();
+drawSelectionOverlay();
 
-      drawSelectionOverlay();
+syncInspector();
 
-      syncInspector();
+syncLayerMotionButton();
 
-      syncLayerMotionButton();
-
-      queuePersist();
-    }
-  );
+queuePersist();
+}
+);
 
 
 /* =========================================================
-   BORRAR TODAS LAS ANIMACIONES
+   BORRAR TODAS
    ========================================================= */
 
 q('#deleteAllAnimations')
-  .addEventListener(
-    'click',
-    () => {
-      const confirmed =
-        confirm(
-          '⚠ ¿BORRAR TODAS LAS ANIMACIONES DEL PROYECTO?\n\nSe eliminarán:\n• todos los keyframes\n• todos los cambios de estado\n• respiración\n• tics orgánicos\n\nLas capas y sus posiciones de Diseño permanecerán intactas.'
-        );
+.addEventListener(
+'click',
+() => {
+const confirmed =
+confirm(
+'⚠ ¿BORRAR TODAS LAS ANIMACIONES DEL PROYECTO?\n\nSe eliminarán:\n• todos los keyframes\n• todos los cambios de estado\n• respiración\n• tics orgánicos\n\nLas capas, el Root y sus posiciones de Diseño permanecerán intactos.'
+);
 
-      if (!confirmed) {
-        return;
-      }
+if (!confirmed) {
+return;
+}
 
-      const second =
-        confirm(
-          'Última confirmación: ¿realmente quieres borrar TODA la animación?'
-        );
+const second =
+confirm(
+'Última confirmación: ¿realmente quieres borrar TODA la animación?'
+);
 
-      if (!second) {
-        return;
-      }
+if (!second) {
+return;
+}
 
-      pushHistory();
+pushHistory();
 
-      animator.pause();
+animator.pause();
 
-      engine.animation
-        .layerKeyframes =
-        {};
+engine.animation
+.layerKeyframes =
+{};
 
-      engine.animation
-        .stateKeyframes =
-        [];
+engine.animation
+.stateKeyframes =
+[];
 
-      for (
-        const layer
-        of engine.layers
-      ) {
-        if (
-          !layer.organic
-        ) {
-          layer.organic =
-            {};
-        }
+engine.animation
+.rootKeyframes =
+[];
 
-        layer.organic.enabled =
-          false;
+for (
+const layer
+of engine.layers
+) {
+if (
+!layer.organic
+) {
+layer.organic =
+{};
+}
 
-        const breathing =
-          animator.getBreathingConfig(
-            layer
-          );
+layer.organic.enabled =
+false;
 
-        layer.breathing = {
-          ...breathing,
+const breathing =
+animator.getBreathingConfig(
+layer
+);
 
-          enabled:
-            false
-        };
+layer.breathing = {
+...breathing,
 
-        layer._organicRuntime =
-          null;
-      }
+enabled:
+false
+};
 
-      animator.manualStates
-        .clear();
+layer._organicRuntime =
+null;
+}
 
-      animator.resetOrganic();
+animator.manualStates
+.clear();
 
-      selectedAnimationRef =
-        null;
+animator.resetOrganic();
 
-      timelinePreviewActive =
-        false;
+selectedAnimationRef =
+null;
 
-      editorMode =
-        'design';
+timelinePreviewActive =
+false;
 
-      engine.resetRuntime();
+editorMode =
+'design';
 
-      engine.draw();
+engine.resetRuntime();
 
-      drawSelectionOverlay();
+engine.draw();
 
-      syncModeUI();
+drawSelectionOverlay();
 
-      syncInspector();
+syncModeUI();
 
-      renderTimelineLists();
+syncInspector();
 
-      queuePersist();
-    }
-  );
+renderTimelineLists();
+
+queuePersist();
+}
+);
 
 
 /* =========================================================
@@ -6735,158 +8312,159 @@ q('#deleteAllAnimations')
    ========================================================= */
 
 q('#runtime')
-  .addEventListener(
-    'click',
-    async () => {
-      const status =
-        q('#runtimeStatus');
+.addEventListener(
+'click',
+async () => {
+const status =
+q('#runtimeStatus');
 
-      const win =
-        window.open(
-          'about:blank',
-          '_blank'
-        );
+const win =
+window.open(
+'about:blank',
+'_blank'
+);
 
-      if (!win) {
-        status.textContent =
-          'El navegador bloqueó la ventana.';
+if (!win) {
+status.textContent =
+'El navegador bloqueó la ventana.';
 
-        return;
-      }
+return;
+}
 
-      status.textContent =
-        'Preparando runtime…';
+status.textContent =
+'Preparando runtime…';
 
-      const saved =
-        await persistProject({
-          broadcast: true
-        });
+const saved =
+await persistProject({
+broadcast:
+true
+});
 
-      if (!saved) {
-        win.close();
+if (!saved) {
+win.close();
 
-        status.textContent =
-          'No se pudo preparar el runtime.';
+status.textContent =
+'No se pudo preparar el runtime.';
 
-        return;
-      }
+return;
+}
 
-      const runtimeURL =
-        new URL(
-          './runtime.html',
-          location.href
-        );
+const runtimeURL =
+new URL(
+'./runtime.html',
+location.href
+);
 
-      runtimeURL
-        .searchParams
-        .set(
-          'source',
-          'current'
-        );
+runtimeURL
+.searchParams
+.set(
+'source',
+'current'
+);
 
-      win.location.href =
-        runtimeURL.href;
+win.location.href =
+runtimeURL.href;
 
-      status.textContent =
-        'Runtime abierto.';
+status.textContent =
+'Runtime abierto.';
 
-      setTimeout(
-        () => {
-          broadcastProject(
-            currentProject()
-          );
-        },
-        400
-      );
+setTimeout(
+() => {
+broadcastProject(
+currentProject()
+);
+},
+400
+);
 
-      setTimeout(
-        () => {
-          broadcastProject(
-            currentProject()
-          );
-        },
-        1100
-      );
-    }
-  );
+setTimeout(
+() => {
+broadcastProject(
+currentProject()
+);
+},
+1100
+);
+}
+);
 
 
 /* =========================================================
-   SEPARADOR DE CAPAS
+   SPLITTER
    ========================================================= */
 
 const splitter = {
-  targetId:
-    null,
+targetId:
+null,
 
-  tool:
-    'brush',
+tool:
+'brush',
 
-  painting:
-    false,
+painting:
+false,
 
-  lastPoint:
-    null,
+lastPoint:
+null,
 
-  lassoPoints:
-    [],
+lassoPoints:
+[],
 
-  sourceCanvas:
-    document.createElement(
-      'canvas'
-    ),
+sourceCanvas:
+document.createElement(
+'canvas'
+),
 
-  maskCanvas:
-    document.createElement(
-      'canvas'
-    ),
+maskCanvas:
+document.createElement(
+'canvas'
+),
 
-  sourceCtx:
-    null,
+sourceCtx:
+null,
 
-  maskCtx:
-    null,
+maskCtx:
+null,
 
-  display:
-    q('#splitterCanvas'),
+display:
+q('#splitterCanvas'),
 
-  displayCtx:
-    q('#splitterCanvas')
-      .getContext(
-        '2d'
-      ),
+displayCtx:
+q('#splitterCanvas')
+.getContext(
+'2d'
+),
 
-  preview:
-    q('#splitPreview'),
+preview:
+q('#splitPreview'),
 
-  previewCtx:
-    q('#splitPreview')
-      .getContext(
-        '2d'
-      )
+previewCtx:
+q('#splitPreview')
+.getContext(
+'2d'
+)
 };
 
 
 splitter.sourceCtx =
-  splitter.sourceCanvas
-    .getContext(
-      '2d',
-      {
-        willReadFrequently:
-          true
-      }
-    );
+splitter.sourceCanvas
+.getContext(
+'2d',
+{
+willReadFrequently:
+true
+}
+);
 
 
 splitter.maskCtx =
-  splitter.maskCanvas
-    .getContext(
-      '2d',
-      {
-        willReadFrequently:
-          true
-      }
-    );
+splitter.maskCanvas
+.getContext(
+'2d',
+{
+willReadFrequently:
+true
+}
+);
 
 
 /* =========================================================
@@ -6894,45 +8472,45 @@ splitter.maskCtx =
    ========================================================= */
 
 function setSplitterTool(
-  tool
+tool
 ) {
-  splitter.tool =
-    tool;
+splitter.tool =
+tool;
 
-  splitter.painting =
-    false;
+splitter.painting =
+false;
 
-  splitter.lastPoint =
-    null;
+splitter.lastPoint =
+null;
 
-  splitter.lassoPoints =
-    [];
+splitter.lassoPoints =
+[];
 
-  q('#toolBrush')
-    .classList
-    .toggle(
-      'active',
-      tool ===
-      'brush'
-    );
+q('#toolBrush')
+.classList
+.toggle(
+'active',
+tool ===
+'brush'
+);
 
-  q('#toolErase')
-    .classList
-    .toggle(
-      'active',
-      tool ===
-      'erase'
-    );
+q('#toolErase')
+.classList
+.toggle(
+'active',
+tool ===
+'erase'
+);
 
-  q('#toolLasso')
-    .classList
-    .toggle(
-      'active',
-      tool ===
-      'lasso'
-    );
+q('#toolLasso')
+.classList
+.toggle(
+'active',
+tool ===
+'lasso'
+);
 
-  renderSplitter();
+renderSplitter();
 }
 
 
@@ -6941,139 +8519,147 @@ function setSplitterTool(
    ========================================================= */
 
 function openSplitter() {
-  const layer =
-    engine.selected;
+if (rootSelected) {
+alert(
+'El Root no contiene píxeles. Selecciona una capa hija para separarla.'
+);
 
-  if (
-    !layer?.image
-  ) {
-    alert(
-      'Primero selecciona una capa con imagen.'
-    );
+return;
+}
 
-    return;
-  }
+const layer =
+engine.selected;
 
-  splitter.targetId =
-    layer.id;
+if (
+!layer?.image
+) {
+alert(
+'Primero selecciona una capa con imagen.'
+);
 
-  const width =
-    layer.image
-      .naturalWidth ||
-    layer.image.width;
+return;
+}
 
-  const height =
-    layer.image
-      .naturalHeight ||
-    layer.image.height;
+splitter.targetId =
+layer.id;
 
-  for (
-    const canvas
-    of [
-      splitter.sourceCanvas,
-      splitter.maskCanvas,
-      splitter.display
-    ]
-  ) {
-    canvas.width =
-      width;
+const width =
+layer.image
+.naturalWidth ||
+layer.image.width;
 
-    canvas.height =
-      height;
-  }
+const height =
+layer.image
+.naturalHeight ||
+layer.image.height;
 
-  splitter.sourceCtx
-    .clearRect(
-      0,
-      0,
-      width,
-      height
-    );
+for (
+const canvas
+of [
+splitter.sourceCanvas,
+splitter.maskCanvas,
+splitter.display
+]
+) {
+canvas.width =
+width;
 
-  splitter.sourceCtx
-    .drawImage(
-      layer.image,
-      0,
-      0,
-      width,
-      height
-    );
+canvas.height =
+height;
+}
 
-  splitter.maskCtx
-    .clearRect(
-      0,
-      0,
-      width,
-      height
-    );
+splitter.sourceCtx
+.clearRect(
+0,
+0,
+width,
+height
+);
 
-  q('#splitName').value =
-    `${layer.name} · parte`;
+splitter.sourceCtx
+.drawImage(
+layer.image,
+0,
+0,
+width,
+height
+);
 
-  q('#splitRole').value =
-    layer.role ||
-    'generic';
+splitter.maskCtx
+.clearRect(
+0,
+0,
+width,
+height
+);
 
-  q('#splitGroup').value =
-    layer.group ||
-    '';
+q('#splitName').value =
+`${layer.name} · parte`;
 
-  q('#splitState').value =
-    layer.state ||
-    '';
+q('#splitRole').value =
+layer.role ||
+'generic';
 
-  q('#splitterSubtitle')
-    .textContent =
-    `Capa fuente: ${layer.name} · ${width}×${height}px`;
+q('#splitGroup').value =
+layer.group ||
+'';
 
-  q('#splitInfo')
-    .textContent =
-    'Pinta una zona para ver la vista previa.';
+q('#splitState').value =
+layer.state ||
+'';
 
-  setSplitterTool(
-    'brush'
-  );
+q('#splitterSubtitle')
+.textContent =
+`Capa fuente: ${layer.name} · ${width}×${height}px`;
 
-  renderSplitter();
+q('#splitInfo')
+.textContent =
+'Pinta una zona para ver la vista previa.';
 
-  renderSplitPreview();
+setSplitterTool(
+'brush'
+);
 
-  q('#splitterModal')
-    .classList
-    .add(
-      'open'
-    );
+renderSplitter();
 
-  q('#splitterModal')
-    .setAttribute(
-      'aria-hidden',
-      'false'
-    );
+renderSplitPreview();
+
+q('#splitterModal')
+.classList
+.add(
+'open'
+);
+
+q('#splitterModal')
+.setAttribute(
+'aria-hidden',
+'false'
+);
 }
 
 
 function closeSplitter() {
-  splitter.painting =
-    false;
+splitter.painting =
+false;
 
-  splitter.targetId =
-    null;
+splitter.targetId =
+null;
 
-  q('#splitterModal')
-    .classList
-    .remove(
-      'open'
-    );
+q('#splitterModal')
+.classList
+.remove(
+'open'
+);
 
-  q('#splitterModal')
-    .setAttribute(
-      'aria-hidden',
-      'true'
-    );
+q('#splitterModal')
+.setAttribute(
+'aria-hidden',
+'true'
+);
 
-  q('#splitterCursor')
-    .hidden =
-    true;
+q('#splitterCursor')
+.hidden =
+true;
 }
 
 
@@ -7082,100 +8668,102 @@ function closeSplitter() {
    ========================================================= */
 
 function renderSplitter() {
-  const context =
-    splitter.displayCtx;
+const context =
+splitter.displayCtx;
 
-  const width =
-    splitter.display.width;
+const width =
+splitter.display.width;
 
-  const height =
-    splitter.display.height;
+const height =
+splitter.display.height;
 
-  context.clearRect(
-    0,
-    0,
-    width,
-    height
-  );
+context.clearRect(
+0,
+0,
+width,
+height
+);
 
-  context.drawImage(
-    splitter.sourceCanvas,
-    0,
-    0
-  );
+context.drawImage(
+splitter.sourceCanvas,
+0,
+0
+);
 
-  context.save();
+context.save();
 
-  context.globalAlpha =
-    Number(
-      q('#maskOpacity')
-        .value
-    ) /
-    100;
+context.globalAlpha =
+Number(
+q('#maskOpacity')
+.value
+) /
+100;
 
-  context.drawImage(
-    splitter.maskCanvas,
-    0,
-    0
-  );
+context.drawImage(
+splitter.maskCanvas,
+0,
+0
+);
 
-  context.restore();
+context.restore();
 
-  if (
-    splitter.tool ===
-      'lasso' &&
-    splitter.lassoPoints
-      .length >
-      1
-  ) {
-    context.save();
+if (
+splitter.tool ===
+'lasso' &&
+splitter.lassoPoints
+.length >
+1
+) {
+context.save();
 
-    context.strokeStyle =
-      '#ffffff';
+context.strokeStyle =
+'#ffffff';
 
-    context.lineWidth =
-      Math.max(
-        1,
-        width /
-        900 *
-        2
-      );
+context.lineWidth =
+Math.max(
+1,
+width /
+900 *
+2
+);
 
-    context.setLineDash(
-      [
-        8,
-        6
-      ]
-    );
+context.setLineDash(
+[
+8,
+6
+]
+);
 
-    context.beginPath();
+context.beginPath();
 
-    context.moveTo(
-      splitter
-        .lassoPoints[0]
-        .x,
+context.moveTo(
+splitter
+.lassoPoints[0]
+.x,
 
-      splitter
-        .lassoPoints[0]
-        .y
-    );
+splitter
+.lassoPoints[0]
+.y
+);
 
-    for (
-      const point
-      of splitter
-        .lassoPoints
-        .slice(1)
-    ) {
-      context.lineTo(
-        point.x,
-        point.y
-      );
-    }
+for (
+const point
+of splitter
+.lassoPoints
+.slice(
+1
+)
+) {
+context.lineTo(
+point.x,
+point.y
+);
+}
 
-    context.stroke();
+context.stroke();
 
-    context.restore();
-  }
+context.restore();
+}
 }
 
 
@@ -7184,29 +8772,29 @@ function renderSplitter() {
    ========================================================= */
 
 function splitterCanvasPoint(
-  event
+event
 ) {
-  const rect =
-    splitter.display
-      .getBoundingClientRect();
+const rect =
+splitter.display
+.getBoundingClientRect();
 
-  return {
-    x:
-      (
-        event.clientX -
-        rect.left
-      ) *
-      splitter.display.width /
-      rect.width,
+return {
+x:
+(
+event.clientX -
+rect.left
+) *
+splitter.display.width /
+rect.width,
 
-    y:
-      (
-        event.clientY -
-        rect.top
-      ) *
-      splitter.display.height /
-      rect.height
-  };
+y:
+(
+event.clientY -
+rect.top
+) *
+splitter.display.height /
+rect.height
+};
 }
 
 
@@ -7215,89 +8803,89 @@ function splitterCanvasPoint(
    ========================================================= */
 
 function drawBrushSegment(
-  from,
-  to
+from,
+to
 ) {
-  const context =
-    splitter.maskCtx;
+const context =
+splitter.maskCtx;
 
-  const size =
-    Number(
-      q('#brushSize')
-        .value
-    );
+const size =
+Number(
+q('#brushSize')
+.value
+);
 
-  context.save();
+context.save();
 
-  if (
-    splitter.tool ===
-    'erase'
-  ) {
-    context.globalCompositeOperation =
-      'destination-out';
+if (
+splitter.tool ===
+'erase'
+) {
+context.globalCompositeOperation =
+'destination-out';
 
-    context.strokeStyle =
-      'rgba(0,0,0,1)';
+context.strokeStyle =
+'rgba(0,0,0,1)';
 
-    context.fillStyle =
-      'rgba(0,0,0,1)';
+context.fillStyle =
+'rgba(0,0,0,1)';
 
-  } else {
-    context.globalCompositeOperation =
-      'source-over';
+} else {
+context.globalCompositeOperation =
+'source-over';
 
-    context.strokeStyle =
-      '#ff69d4';
+context.strokeStyle =
+'#ff69d4';
 
-    context.fillStyle =
-      '#ff69d4';
-  }
+context.fillStyle =
+'#ff69d4';
+}
 
-  context.lineWidth =
-    size;
+context.lineWidth =
+size;
 
-  context.lineCap =
-    'round';
+context.lineCap =
+'round';
 
-  context.lineJoin =
-    'round';
+context.lineJoin =
+'round';
 
-  context.beginPath();
+context.beginPath();
 
-  context.moveTo(
-    from.x,
-    from.y
-  );
+context.moveTo(
+from.x,
+from.y
+);
 
-  context.lineTo(
-    to.x,
-    to.y
-  );
+context.lineTo(
+to.x,
+to.y
+);
 
-  context.stroke();
+context.stroke();
 
-  if (
-    from.x ===
-      to.x &&
-    from.y ===
-      to.y
-  ) {
-    context.beginPath();
+if (
+from.x ===
+to.x &&
+from.y ===
+to.y
+) {
+context.beginPath();
 
-    context.arc(
-      from.x,
-      from.y,
-      size /
-      2,
-      0,
-      Math.PI *
-      2
-    );
+context.arc(
+from.x,
+from.y,
+size /
+2,
+0,
+Math.PI *
+2
+);
 
-    context.fill();
-  }
+context.fill();
+}
 
-  context.restore();
+context.restore();
 }
 
 
@@ -7306,48 +8894,50 @@ function drawBrushSegment(
    ========================================================= */
 
 function fillLasso(
-  points
+points
 ) {
-  if (
-    points.length <
-    3
-  ) {
-    return;
-  }
+if (
+points.length <
+3
+) {
+return;
+}
 
-  const context =
-    splitter.maskCtx;
+const context =
+splitter.maskCtx;
 
-  context.save();
+context.save();
 
-  context.globalCompositeOperation =
-    'source-over';
+context.globalCompositeOperation =
+'source-over';
 
-  context.fillStyle =
-    '#ff69d4';
+context.fillStyle =
+'#ff69d4';
 
-  context.beginPath();
+context.beginPath();
 
-  context.moveTo(
-    points[0].x,
-    points[0].y
-  );
+context.moveTo(
+points[0].x,
+points[0].y
+);
 
-  for (
-    const point
-    of points.slice(1)
-  ) {
-    context.lineTo(
-      point.x,
-      point.y
-    );
-  }
+for (
+const point
+of points.slice(
+1
+)
+) {
+context.lineTo(
+point.x,
+point.y
+);
+}
 
-  context.closePath();
+context.closePath();
 
-  context.fill();
+context.fill();
 
-  context.restore();
+context.restore();
 }
 
 
@@ -7356,143 +8946,147 @@ function fillLasso(
    ========================================================= */
 
 function maskBounds() {
-  const width =
-    splitter.maskCanvas.width;
+const width =
+splitter.maskCanvas.width;
 
-  const height =
-    splitter.maskCanvas.height;
+const height =
+splitter.maskCanvas.height;
 
-  if (
-    !width ||
-    !height
-  ) {
-    return null;
-  }
+if (
+!width ||
+!height
+) {
+return null;
+}
 
-  const mask =
-    splitter.maskCtx
-      .getImageData(
-        0,
-        0,
-        width,
-        height
-      )
-      .data;
+const mask =
+splitter.maskCtx
+.getImageData(
+0,
+0,
+width,
+height
+)
+.data;
 
-  const source =
-    splitter.sourceCtx
-      .getImageData(
-        0,
-        0,
-        width,
-        height
-      )
-      .data;
+const source =
+splitter.sourceCtx
+.getImageData(
+0,
+0,
+width,
+height
+)
+.data;
 
-  let minX =
-    width;
+let minX =
+width;
 
-  let minY =
-    height;
+let minY =
+height;
 
-  let maxX =
-    -1;
+let maxX =
+-1;
 
-  let maxY =
-    -1;
+let maxY =
+-1;
 
-  let count =
-    0;
+let count =
+0;
 
-  for (
-    let y =
-      0;
-    y <
-      height;
-    y++
-  ) {
-    for (
-      let x =
-        0;
-      x <
-        width;
-      x++
-    ) {
-      const index =
-        (
-          y *
-          width +
-          x
-        ) *
-        4;
+for (
+let y =
+0;
 
-      if (
-        mask[
-          index +
-          3
-        ] >
-          10 &&
-        source[
-          index +
-          3
-        ] >
-          0
-      ) {
-        minX =
-          Math.min(
-            minX,
-            x
-          );
+y <
+height;
 
-        minY =
-          Math.min(
-            minY,
-            y
-          );
+y++
+) {
+for (
+let x =
+0;
 
-        maxX =
-          Math.max(
-            maxX,
-            x
-          );
+x <
+width;
 
-        maxY =
-          Math.max(
-            maxY,
-            y
-          );
+x++
+) {
+const index =
+(
+y *
+width +
+x
+) *
+4;
 
-        count++;
-      }
-    }
-  }
+if (
+mask[
+index +
+3
+] >
+10 &&
+source[
+index +
+3
+] >
+0
+) {
+minX =
+Math.min(
+minX,
+x
+);
 
-  if (
-    maxX <
-    0
-  ) {
-    return null;
-  }
+minY =
+Math.min(
+minY,
+y
+);
 
-  return {
-    x:
-      minX,
+maxX =
+Math.max(
+maxX,
+x
+);
 
-    y:
-      minY,
+maxY =
+Math.max(
+maxY,
+y
+);
 
-    w:
-      maxX -
-      minX +
-      1,
+count++;
+}
+}
+}
 
-    h:
-      maxY -
-      minY +
-      1,
+if (
+maxX <
+0
+) {
+return null;
+}
 
-    count
-  };
+return {
+x:
+minX,
+
+y:
+minY,
+
+w:
+maxX -
+minX +
+1,
+
+h:
+maxY -
+minY +
+1,
+
+count
+};
 }
 
 
@@ -7501,73 +9095,73 @@ function maskBounds() {
    ========================================================= */
 
 function expandBounds(
-  bounds,
-  padding
+bounds,
+padding
 ) {
-  const width =
-    splitter
-      .sourceCanvas
-      .width;
+const width =
+splitter
+.sourceCanvas
+.width;
 
-  const height =
-    splitter
-      .sourceCanvas
-      .height;
+const height =
+splitter
+.sourceCanvas
+.height;
 
-  const pad =
-    clamp(
-      Math.round(
-        padding
-      ),
-      0,
-      3
-    );
+const pad =
+clamp(
+Math.round(
+padding
+),
+0,
+3
+);
 
-  const x =
-    Math.max(
-      0,
-      bounds.x -
-      pad
-    );
+const x =
+Math.max(
+0,
+bounds.x -
+pad
+);
 
-  const y =
-    Math.max(
-      0,
-      bounds.y -
-      pad
-    );
+const y =
+Math.max(
+0,
+bounds.y -
+pad
+);
 
-  const right =
-    Math.min(
-      width,
-      bounds.x +
-      bounds.w +
-      pad
-    );
+const right =
+Math.min(
+width,
+bounds.x +
+bounds.w +
+pad
+);
 
-  const bottom =
-    Math.min(
-      height,
-      bounds.y +
-      bounds.h +
-      pad
-    );
+const bottom =
+Math.min(
+height,
+bounds.y +
+bounds.h +
+pad
+);
 
-  return {
-    x,
-    y,
+return {
+x,
+y,
 
-    w:
-      right -
-      x,
+w:
+right -
+x,
 
-    h:
-      bottom -
-      y,
+h:
+bottom -
+y,
 
-    count:
-      bounds.count
-  };
+count:
+bounds.count
+};
 }
 
 
@@ -7576,80 +9170,80 @@ function expandBounds(
    ========================================================= */
 
 function expandedMaskAlpha(
-  mask,
-  width,
-  height,
-  x,
-  y,
-  radius
+mask,
+width,
+height,
+x,
+y,
+radius
 ) {
-  let maximum =
-    0;
+let maximum =
+0;
 
-  for (
-    let yy =
-      Math.max(
-        0,
-        y -
-        radius
-      );
+for (
+let yy =
+Math.max(
+0,
+y -
+radius
+);
 
-    yy <=
-      Math.min(
-        height -
-        1,
-        y +
-        radius
-      );
+yy <=
+Math.min(
+height -
+1,
+y +
+radius
+);
 
-    yy++
-  ) {
-    for (
-      let xx =
-        Math.max(
-          0,
-          x -
-          radius
-        );
+yy++
+) {
+for (
+let xx =
+Math.max(
+0,
+x -
+radius
+);
 
-      xx <=
-        Math.min(
-          width -
-          1,
-          x +
-          radius
-        );
+xx <=
+Math.min(
+width -
+1,
+x +
+radius
+);
 
-      xx++
-    ) {
-      const alpha =
-        mask[
-          (
-            yy *
-            width +
-            xx
-          ) *
-          4 +
-          3
-        ];
+xx++
+) {
+const alpha =
+mask[
+(
+yy *
+width +
+xx
+) *
+4 +
+3
+];
 
-      maximum =
-        Math.max(
-          maximum,
-          alpha
-        );
+maximum =
+Math.max(
+maximum,
+alpha
+);
 
-      if (
-        maximum ===
-        255
-      ) {
-        return 1;
-      }
-    }
-  }
+if (
+maximum ===
+255
+) {
+return 1;
+}
+}
+}
 
-  return maximum /
-    255;
+return maximum /
+255;
 }
 
 
@@ -7658,331 +9252,338 @@ function expandedMaskAlpha(
    ========================================================= */
 
 function extractCanvas(
-  bounds,
-  removeFromOriginal =
-    false,
-  cleanupPx =
-    0
+bounds,
+removeFromOriginal =
+false,
+cleanupPx =
+0
 ) {
-  const width =
-    splitter
-      .sourceCanvas
-      .width;
+const width =
+splitter
+.sourceCanvas
+.width;
 
-  const height =
-    splitter
-      .sourceCanvas
-      .height;
+const height =
+splitter
+.sourceCanvas
+.height;
 
-  const sourceData =
-    splitter.sourceCtx
-      .getImageData(
-        0,
-        0,
-        width,
-        height
-      );
+const sourceData =
+splitter.sourceCtx
+.getImageData(
+0,
+0,
+width,
+height
+);
 
-  const maskData =
-    splitter.maskCtx
-      .getImageData(
-        0,
-        0,
-        width,
-        height
-      );
+const maskData =
+splitter.maskCtx
+.getImageData(
+0,
+0,
+width,
+height
+);
 
-  const cleanupRadius =
-    clamp(
-      Math.round(
-        cleanupPx
-      ),
-      0,
-      3
-    );
+const cleanupRadius =
+clamp(
+Math.round(
+cleanupPx
+),
+0,
+3
+);
 
-  const output =
-    document.createElement(
-      'canvas'
-    );
+const output =
+document.createElement(
+'canvas'
+);
 
-  output.width =
-    bounds.w;
+output.width =
+bounds.w;
 
-  output.height =
-    bounds.h;
+output.height =
+bounds.h;
 
-  const outputContext =
-    output.getContext(
-      '2d'
-    );
+const outputContext =
+output.getContext(
+'2d'
+);
 
-  const outputData =
-    outputContext
-      .createImageData(
-        bounds.w,
-        bounds.h
-      );
+const outputData =
+outputContext
+.createImageData(
+bounds.w,
+bounds.h
+);
 
-  for (
-    let yy =
-      0;
-    yy <
-      bounds.h;
-    yy++
-  ) {
-    const sourceY =
-      bounds.y +
-      yy;
+for (
+let yy =
+0;
 
-    for (
-      let xx =
-        0;
-      xx <
-        bounds.w;
-      xx++
-    ) {
-      const sourceX =
-        bounds.x +
-        xx;
+yy <
+bounds.h;
 
-      const sourceIndex =
-        (
-          sourceY *
-          width +
-          sourceX
-        ) *
-        4;
+yy++
+) {
+const sourceY =
+bounds.y +
+yy;
 
-      const outputIndex =
-        (
-          yy *
-          bounds.w +
-          xx
-        ) *
-        4;
+for (
+let xx =
+0;
 
-      const sourceAlpha =
-        sourceData.data[
-          sourceIndex +
-          3
-        ] /
-        255;
+xx <
+bounds.w;
 
-      if (
-        sourceAlpha <=
-        0
-      ) {
-        continue;
-      }
+xx++
+) {
+const sourceX =
+bounds.x +
+xx;
 
-      const maskAlpha =
-        cleanupRadius >
-        0
-          ? expandedMaskAlpha(
-              maskData.data,
-              width,
-              height,
-              sourceX,
-              sourceY,
-              cleanupRadius
-            )
-          : maskData.data[
-              sourceIndex +
-              3
-            ] /
-            255;
+const sourceIndex =
+(
+sourceY *
+width +
+sourceX
+) *
+4;
 
-      if (
-        maskAlpha <=
-        0
-      ) {
-        continue;
-      }
+const outputIndex =
+(
+yy *
+bounds.w +
+xx
+) *
+4;
 
-      outputData.data[
-        outputIndex
-      ] =
-        sourceData.data[
-          sourceIndex
-        ];
+const sourceAlpha =
+sourceData.data[
+sourceIndex +
+3
+] /
+255;
 
-      outputData.data[
-        outputIndex +
-        1
-      ] =
-        sourceData.data[
-          sourceIndex +
-          1
-        ];
+if (
+sourceAlpha <=
+0
+) {
+continue;
+}
 
-      outputData.data[
-        outputIndex +
-        2
-      ] =
-        sourceData.data[
-          sourceIndex +
-          2
-        ];
+const maskAlpha =
+cleanupRadius >
+0
+? expandedMaskAlpha(
+maskData.data,
+width,
+height,
+sourceX,
+sourceY,
+cleanupRadius
+)
+: maskData.data[
+sourceIndex +
+3
+] /
+255;
 
-      outputData.data[
-        outputIndex +
-        3
-      ] =
-        Math.round(
-          sourceAlpha *
-          maskAlpha *
-          255
-        );
-    }
-  }
+if (
+maskAlpha <=
+0
+) {
+continue;
+}
 
-  outputContext
-    .putImageData(
-      outputData,
-      0,
-      0
-    );
+outputData.data[
+outputIndex
+] =
+sourceData.data[
+sourceIndex
+];
 
-  if (
-    removeFromOriginal
-  ) {
-    const radius =
-      cleanupRadius;
+outputData.data[
+outputIndex +
+1
+] =
+sourceData.data[
+sourceIndex +
+1
+];
 
-    const x0 =
-      Math.max(
-        0,
-        bounds.x -
-        radius
-      );
+outputData.data[
+outputIndex +
+2
+] =
+sourceData.data[
+sourceIndex +
+2
+];
 
-    const y0 =
-      Math.max(
-        0,
-        bounds.y -
-        radius
-      );
+outputData.data[
+outputIndex +
+3
+] =
+Math.round(
+sourceAlpha *
+maskAlpha *
+255
+);
+}
+}
 
-    const x1 =
-      Math.min(
-        width -
-        1,
+outputContext
+.putImageData(
+outputData,
+0,
+0
+);
 
-        bounds.x +
-        bounds.w -
-        1 +
-        radius
-      );
 
-    const y1 =
-      Math.min(
-        height -
-        1,
+if (
+removeFromOriginal
+) {
+const radius =
+cleanupRadius;
 
-        bounds.y +
-        bounds.h -
-        1 +
-        radius
-      );
+const x0 =
+Math.max(
+0,
+bounds.x -
+radius
+);
 
-    for (
-      let y =
-        y0;
-      y <=
-        y1;
-      y++
-    ) {
-      for (
-        let x =
-          x0;
-        x <=
-          x1;
-        x++
-      ) {
-        const index =
-          (
-            y *
-            width +
-            x
-          ) *
-          4;
+const y0 =
+Math.max(
+0,
+bounds.y -
+radius
+);
 
-        if (
-          sourceData.data[
-            index +
-            3
-          ] ===
-          0
-        ) {
-          continue;
-        }
+const x1 =
+Math.min(
+width -
+1,
+bounds.x +
+bounds.w -
+1 +
+radius
+);
 
-        const coverage =
-          radius >
-          0
-            ? expandedMaskAlpha(
-                maskData.data,
-                width,
-                height,
-                x,
-                y,
-                radius
-              )
-            : maskData.data[
-                index +
-                3
-              ] /
-              255;
+const y1 =
+Math.min(
+height -
+1,
+bounds.y +
+bounds.h -
+1 +
+radius
+);
 
-        if (
-          coverage <=
-          0
-        ) {
-          continue;
-        }
+for (
+let y =
+y0;
 
-        const originalAlpha =
-          sourceData.data[
-            index +
-            3
-          ] /
-          255;
+y <=
+y1;
 
-        const remaining =
-          originalAlpha *
-          (
-            1 -
-            Math.min(
-              1,
-              coverage *
-              1.12
-            )
-          );
+y++
+) {
+for (
+let x =
+x0;
 
-        sourceData.data[
-          index +
-          3
-        ] =
-          remaining <
-          0.02
-            ? 0
-            : Math.round(
-                remaining *
-                255
-              );
-      }
-    }
+x <=
+x1;
 
-    splitter.sourceCtx
-      .putImageData(
-        sourceData,
-        0,
-        0
-      );
-  }
+x++
+) {
+const index =
+(
+y *
+width +
+x
+) *
+4;
 
-  return output;
+if (
+sourceData.data[
+index +
+3
+] ===
+0
+) {
+continue;
+}
+
+const coverage =
+radius >
+0
+? expandedMaskAlpha(
+maskData.data,
+width,
+height,
+x,
+y,
+radius
+)
+: maskData.data[
+index +
+3
+] /
+255;
+
+if (
+coverage <=
+0
+) {
+continue;
+}
+
+const originalAlpha =
+sourceData.data[
+index +
+3
+] /
+255;
+
+const remaining =
+originalAlpha *
+(
+1 -
+Math.min(
+1,
+coverage *
+1.12
+)
+);
+
+sourceData.data[
+index +
+3
+] =
+remaining <
+0.02
+? 0
+: Math.round(
+remaining *
+255
+);
+}
+}
+
+splitter.sourceCtx
+.putImageData(
+sourceData,
+0,
+0
+);
+}
+
+return output;
 }
 
 
@@ -7991,100 +9592,100 @@ function extractCanvas(
    ========================================================= */
 
 function renderSplitPreview() {
-  const context =
-    splitter.previewCtx;
+const context =
+splitter.previewCtx;
 
-  const canvas =
-    splitter.preview;
+const canvas =
+splitter.preview;
 
-  context.clearRect(
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
+context.clearRect(
+0,
+0,
+canvas.width,
+canvas.height
+);
 
-  const bounds =
-    maskBounds();
+const bounds =
+maskBounds();
 
-  if (!bounds) {
-    q('#splitInfo')
-      .textContent =
-      'Pinta una zona para ver la vista previa.';
+if (!bounds) {
+q('#splitInfo')
+.textContent =
+'Pinta una zona para ver la vista previa.';
 
-    return;
-  }
+return;
+}
 
-  const cleanup =
-    Number(
-      q('#edgeCleanup')
-        .value
-    ) ||
-    0;
+const cleanup =
+Number(
+q('#edgeCleanup')
+.value
+) ||
+0;
 
-  const outputBounds =
-    expandBounds(
-      bounds,
-      cleanup
-    );
+const outputBounds =
+expandBounds(
+bounds,
+cleanup
+);
 
-  const temp =
-    extractCanvas(
-      outputBounds,
-      false,
-      cleanup
-    );
+const temp =
+extractCanvas(
+outputBounds,
+false,
+cleanup
+);
 
-  const padding =
-    18;
+const padding =
+18;
 
-  const scale =
-    Math.min(
-      (
-        canvas.width -
-        padding *
-        2
-      ) /
-      outputBounds.w,
+const scale =
+Math.min(
+(
+canvas.width -
+padding *
+2
+) /
+outputBounds.w,
 
-      (
-        canvas.height -
-        padding *
-        2
-      ) /
-      outputBounds.h
-    );
+(
+canvas.height -
+padding *
+2
+) /
+outputBounds.h
+);
 
-  const drawWidth =
-    outputBounds.w *
-    scale;
+const drawWidth =
+outputBounds.w *
+scale;
 
-  const drawHeight =
-    outputBounds.h *
-    scale;
+const drawHeight =
+outputBounds.h *
+scale;
 
-  context.drawImage(
-    temp,
+context.drawImage(
+temp,
 
-    (
-      canvas.width -
-      drawWidth
-    ) /
-    2,
+(
+canvas.width -
+drawWidth
+) /
+2,
 
-    (
-      canvas.height -
-      drawHeight
-    ) /
-    2,
+(
+canvas.height -
+drawHeight
+) /
+2,
 
-    drawWidth,
-    drawHeight
-  );
+drawWidth,
+drawHeight
+);
 
-  q('#splitInfo')
-    .textContent =
-    `Selección: ${bounds.w}×${bounds.h}px · ${bounds.count.toLocaleString()} píxeles`;
+q('#splitInfo')
+.textContent =
+`Selección: ${bounds.w}×${bounds.h}px · ${bounds.count.toLocaleString()} píxeles`;
 }
 
 
@@ -8093,205 +9694,211 @@ function renderSplitPreview() {
    ========================================================= */
 
 async function extractSelectedLayer() {
-  const sourceLayer =
-    engine.layers.find(
-      layer =>
-        layer.id ===
-        splitter.targetId
-    );
+const sourceLayer =
+engine.layers.find(
+layer =>
+layer.id ===
+splitter.targetId
+);
 
-  if (!sourceLayer) {
-    return;
-  }
+if (!sourceLayer) {
+return;
+}
 
-  const selectionBounds =
-    maskBounds();
+const selectionBounds =
+maskBounds();
 
-  if (!selectionBounds) {
-    alert(
-      'Todavía no hay una selección.'
-    );
+if (!selectionBounds) {
+alert(
+'Todavía no hay una selección.'
+);
 
-    return;
-  }
+return;
+}
 
-  pushHistory();
+pushHistory();
 
-  splitBackup =
-    currentProject();
+splitBackup =
+currentProject();
 
-  q('#undoSplit')
-    .disabled =
-    false;
+q('#undoSplit')
+.disabled =
+false;
 
-  const originalWidth =
-    sourceLayer.image.width;
+const originalWidth =
+sourceLayer.image.width;
 
-  const originalHeight =
-    sourceLayer.image.height;
+const originalHeight =
+sourceLayer.image.height;
 
-  const remove =
-    q('#removeOriginal')
-      .checked;
+const remove =
+q('#removeOriginal')
+.checked;
 
-  const cleanup =
-    Number(
-      q('#edgeCleanup')
-        .value
-    ) ||
-    0;
+const cleanup =
+Number(
+q('#edgeCleanup')
+.value
+) ||
+0;
 
-  const bounds =
-    expandBounds(
-      selectionBounds,
-      cleanup
-    );
+const bounds =
+expandBounds(
+selectionBounds,
+cleanup
+);
 
-  const cropCanvas =
-    extractCanvas(
-      bounds,
-      remove,
-      cleanup
-    );
+const cropCanvas =
+extractCanvas(
+bounds,
+remove,
+cleanup
+);
 
-  const cropSrc =
-    cropCanvas.toDataURL(
-      'image/png'
-    );
+const cropSrc =
+cropCanvas.toDataURL(
+'image/png'
+);
 
-  const cropImage =
-    await loadImage(
-      cropSrc
-    );
+const cropImage =
+await loadImage(
+cropSrc
+);
 
-  if (
-    remove
-  ) {
-    const sourceSrc =
-      splitter.sourceCanvas
-        .toDataURL(
-          'image/png'
-        );
 
-    sourceLayer.src =
-      sourceSrc;
+if (remove) {
+const sourceSrc =
+splitter.sourceCanvas
+.toDataURL(
+'image/png'
+);
 
-    sourceLayer.image =
-      await loadImage(
-        sourceSrc
-      );
+sourceLayer.src =
+sourceSrc;
 
-    sourceLayer.base =
-      engine.snapshot(
-        sourceLayer
-      );
-  }
+sourceLayer.image =
+await loadImage(
+sourceSrc
+);
 
-  const cropCenterX =
-    bounds.x +
-    bounds.w /
-    2;
+sourceLayer.base =
+engine.snapshot(
+sourceLayer
+);
+}
 
-  const cropCenterY =
-    bounds.y +
-    bounds.h /
-    2;
 
-  const localOffsetX =
-    cropCenterX -
-    originalWidth /
-    2;
+const cropCenterX =
+bounds.x +
+bounds.w /
+2;
 
-  const localOffsetY =
-    cropCenterY -
-    originalHeight /
-    2;
+const cropCenterY =
+bounds.y +
+bounds.h /
+2;
 
-  const newLayer =
-    engine.addLayer({
-      name:
-        q('#splitName')
-          .value
-          .trim() ||
-        'Pieza separada',
+const localOffsetX =
+cropCenterX -
+originalWidth /
+2;
 
-      role:
-        q('#splitRole')
-          .value,
+const localOffsetY =
+cropCenterY -
+originalHeight /
+2;
 
-      group:
-        q('#splitGroup')
-          .value
-          .trim(),
 
-      state:
-        q('#splitState')
-          .value
-          .trim(),
+const newLayer =
+engine.addLayer({
+name:
+q('#splitName')
+.value
+.trim() ||
+'Pieza separada',
 
-      src:
-        cropSrc,
+role:
+q('#splitRole')
+.value,
 
-      image:
-        cropImage,
+group:
+q('#splitGroup')
+.value
+.trim(),
 
-      x:
-        sourceLayer.x,
+state:
+q('#splitState')
+.value
+.trim(),
 
-      y:
-        sourceLayer.y,
+src:
+cropSrc,
 
-      scale:
-        sourceLayer.scale,
+image:
+cropImage,
 
-      rotation:
-        sourceLayer.rotation,
+x:
+sourceLayer.x,
 
-      opacity:
-        sourceLayer.opacity,
+y:
+sourceLayer.y,
 
-      pivotX:
-        sourceLayer.pivotX -
-        localOffsetX,
+scale:
+sourceLayer.scale,
 
-      pivotY:
-        sourceLayer.pivotY -
-        localOffsetY,
+rotation:
+sourceLayer.rotation,
 
-      flipX:
-        sourceLayer.flipX,
+opacity:
+sourceLayer.opacity,
 
-      flipY:
-        sourceLayer.flipY,
+pivotX:
+sourceLayer.pivotX -
+localOffsetX,
 
-      visible:
-        true
-    });
+pivotY:
+sourceLayer.pivotY -
+localOffsetY,
 
-  newLayer.base =
-    engine.snapshot(
-      newLayer
-    );
+flipX:
+sourceLayer.flipX,
 
-  multiSelection.clear();
+flipY:
+sourceLayer.flipY,
 
-  engine.selectedId =
-    newLayer.id;
+visible:
+true
+});
 
-  timelinePreviewActive =
-    false;
 
-  renderLayers();
+newLayer.base =
+engine.snapshot(
+newLayer
+);
 
-  syncInspector();
+rootSelected =
+false;
 
-  renderTimelineLists();
+multiSelection.clear();
 
-  closeSplitter();
+engine.selectedId =
+newLayer.id;
 
-  await persistProject({
-    broadcast: true
-  });
+timelinePreviewActive =
+false;
+
+renderLayers();
+
+syncInspector();
+
+renderTimelineLists();
+
+closeSplitter();
+
+await persistProject({
+broadcast:
+true
+});
 }
 
 
@@ -8300,218 +9907,220 @@ async function extractSelectedLayer() {
    ========================================================= */
 
 q('#splitLayer')
-  .addEventListener(
-    'click',
-    openSplitter
-  );
+.addEventListener(
+'click',
+openSplitter
+);
 
 
 q('#splitClose')
-  .addEventListener(
-    'click',
-    closeSplitter
-  );
+.addEventListener(
+'click',
+closeSplitter
+);
 
 
 q('#splitCancel')
-  .addEventListener(
-    'click',
-    closeSplitter
-  );
+.addEventListener(
+'click',
+closeSplitter
+);
 
 
 q('#extractLayer')
-  .addEventListener(
-    'click',
-    extractSelectedLayer
-  );
+.addEventListener(
+'click',
+extractSelectedLayer
+);
 
 
 q('#toolBrush')
-  .addEventListener(
-    'click',
-    () => {
-      setSplitterTool(
-        'brush'
-      );
-    }
-  );
+.addEventListener(
+'click',
+() => {
+setSplitterTool(
+'brush'
+);
+}
+);
 
 
 q('#toolErase')
-  .addEventListener(
-    'click',
-    () => {
-      setSplitterTool(
-        'erase'
-      );
-    }
-  );
+.addEventListener(
+'click',
+() => {
+setSplitterTool(
+'erase'
+);
+}
+);
 
 
 q('#toolLasso')
-  .addEventListener(
-    'click',
-    () => {
-      setSplitterTool(
-        'lasso'
-      );
-    }
-  );
+.addEventListener(
+'click',
+() => {
+setSplitterTool(
+'lasso'
+);
+}
+);
 
 
 q('#clearMask')
-  .addEventListener(
-    'click',
-    () => {
-      splitter.maskCtx
-        .clearRect(
-          0,
-          0,
-          splitter
-            .maskCanvas
-            .width,
-          splitter
-            .maskCanvas
-            .height
-        );
+.addEventListener(
+'click',
+() => {
+splitter.maskCtx
+.clearRect(
+0,
+0,
+splitter
+.maskCanvas
+.width,
+splitter
+.maskCanvas
+.height
+);
 
-      renderSplitter();
+renderSplitter();
 
-      renderSplitPreview();
-    }
-  );
+renderSplitPreview();
+}
+);
 
 
 q('#selectVisible')
-  .addEventListener(
-    'click',
-    () => {
-      const width =
-        splitter
-          .sourceCanvas
-          .width;
+.addEventListener(
+'click',
+() => {
+const width =
+splitter
+.sourceCanvas
+.width;
 
-      const height =
-        splitter
-          .sourceCanvas
-          .height;
+const height =
+splitter
+.sourceCanvas
+.height;
 
-      const source =
-        splitter.sourceCtx
-          .getImageData(
-            0,
-            0,
-            width,
-            height
-          );
+const source =
+splitter.sourceCtx
+.getImageData(
+0,
+0,
+width,
+height
+);
 
-      const mask =
-        splitter.maskCtx
-          .createImageData(
-            width,
-            height
-          );
+const mask =
+splitter.maskCtx
+.createImageData(
+width,
+height
+);
 
-      for (
-        let index =
-          0;
-        index <
-          source.data.length;
-        index +=
-          4
-      ) {
-        if (
-          source.data[
-            index +
-            3
-          ] ===
-          0
-        ) {
-          continue;
-        }
+for (
+let index =
+0;
 
-        mask.data[
-          index
-        ] =
-          255;
+index <
+source.data.length;
 
-        mask.data[
-          index +
-          1
-        ] =
-          105;
+index +=
+4
+) {
+if (
+source.data[
+index +
+3
+] ===
+0
+) {
+continue;
+}
 
-        mask.data[
-          index +
-          2
-        ] =
-          212;
+mask.data[
+index
+] =
+255;
 
-        mask.data[
-          index +
-          3
-        ] =
-          255;
-      }
+mask.data[
+index +
+1
+] =
+105;
 
-      splitter.maskCtx
-        .clearRect(
-          0,
-          0,
-          width,
-          height
-        );
+mask.data[
+index +
+2
+] =
+212;
 
-      splitter.maskCtx
-        .putImageData(
-          mask,
-          0,
-          0
-        );
+mask.data[
+index +
+3
+] =
+255;
+}
 
-      renderSplitter();
+splitter.maskCtx
+.clearRect(
+0,
+0,
+width,
+height
+);
 
-      renderSplitPreview();
-    }
-  );
+splitter.maskCtx
+.putImageData(
+mask,
+0,
+0
+);
+
+renderSplitter();
+
+renderSplitPreview();
+}
+);
 
 
 q('#brushSize')
-  .addEventListener(
-    'input',
-    event => {
-      q('#brushSizeValue')
-        .textContent =
-        `${event.target.value} px`;
-    }
-  );
+.addEventListener(
+'input',
+event => {
+q('#brushSizeValue')
+.textContent =
+`${event.target.value} px`;
+}
+);
 
 
 q('#maskOpacity')
-  .addEventListener(
-    'input',
-    event => {
-      q('#maskOpacityValue')
-        .textContent =
-        `${event.target.value}%`;
+.addEventListener(
+'input',
+event => {
+q('#maskOpacityValue')
+.textContent =
+`${event.target.value}%`;
 
-      renderSplitter();
-    }
-  );
+renderSplitter();
+}
+);
 
 
 q('#edgeCleanup')
-  .addEventListener(
-    'input',
-    event => {
-      q('#edgeCleanupValue')
-        .textContent =
-        `${event.target.value} px`;
+.addEventListener(
+'input',
+event => {
+q('#edgeCleanupValue')
+.textContent =
+`${event.target.value} px`;
 
-      renderSplitPreview();
-    }
-  );
+renderSplitPreview();
+}
+);
 
 
 /* =========================================================
@@ -8519,214 +10128,212 @@ q('#edgeCleanup')
    ========================================================= */
 
 splitter.display
-  .addEventListener(
-    'pointerdown',
-    event => {
-      if (
-        event.button !==
-        0
-      ) {
-        return;
-      }
+.addEventListener(
+'pointerdown',
+event => {
+if (
+event.button !==
+0
+) {
+return;
+}
 
-      splitter.display
-        .setPointerCapture(
-          event.pointerId
-        );
+splitter.display
+.setPointerCapture(
+event.pointerId
+);
 
-      const point =
-        splitterCanvasPoint(
-          event
-        );
+const point =
+splitterCanvasPoint(
+event
+);
 
-      splitter.painting =
-        true;
+splitter.painting =
+true;
 
-      splitter.lastPoint =
-        point;
+splitter.lastPoint =
+point;
 
-      if (
-        splitter.tool ===
-        'lasso'
-      ) {
-        splitter.lassoPoints =
-          [
-            point
-          ];
+if (
+splitter.tool ===
+'lasso'
+) {
+splitter.lassoPoints =
+[
+point
+];
 
-      } else {
-        drawBrushSegment(
-          point,
-          point
-        );
+} else {
+drawBrushSegment(
+point,
+point
+);
 
-        renderSplitter();
-      }
-    }
-  );
+renderSplitter();
+}
+}
+);
 
 
 splitter.display
-  .addEventListener(
-    'pointermove',
-    event => {
-      const rect =
-        splitter.display
-          .getBoundingClientRect();
+.addEventListener(
+'pointermove',
+event => {
+const rect =
+splitter.display
+.getBoundingClientRect();
 
-      const cursor =
-        q('#splitterCursor');
+const cursor =
+q('#splitterCursor');
 
-      if (
-        splitter.tool ===
-          'brush' ||
-        splitter.tool ===
-          'erase'
-      ) {
-        const cssSize =
-          Number(
-            q('#brushSize')
-              .value
-          ) *
-          rect.width /
-          splitter.display
-            .width;
+if (
+splitter.tool ===
+'brush' ||
+splitter.tool ===
+'erase'
+) {
+const cssSize =
+Number(
+q('#brushSize')
+.value
+) *
+rect.width /
+splitter.display.width;
 
-        cursor.hidden =
-          false;
+cursor.hidden =
+false;
 
-        cursor.style.left =
-          `${event.clientX}px`;
+cursor.style.left =
+`${event.clientX}px`;
 
-        cursor.style.top =
-          `${event.clientY}px`;
+cursor.style.top =
+`${event.clientY}px`;
 
-        cursor.style.width =
-          `${cssSize}px`;
+cursor.style.width =
+`${cssSize}px`;
 
-        cursor.style.height =
-          `${cssSize}px`;
+cursor.style.height =
+`${cssSize}px`;
 
-      } else {
-        cursor.hidden =
-          true;
-      }
+} else {
+cursor.hidden =
+true;
+}
 
-      if (
-        !splitter.painting
-      ) {
-        return;
-      }
+if (
+!splitter.painting
+) {
+return;
+}
 
-      const point =
-        splitterCanvasPoint(
-          event
-        );
+const point =
+splitterCanvasPoint(
+event
+);
 
-      if (
-        splitter.tool ===
-        'lasso'
-      ) {
-        const previous =
-          splitter
-            .lassoPoints
-            .at(-1);
+if (
+splitter.tool ===
+'lasso'
+) {
+const previous =
+splitter
+.lassoPoints
+.at(-1);
 
-        const minStep =
-          Math.max(
-            2,
-            splitter.display
-              .width /
-            700
-          );
+const minStep =
+Math.max(
+2,
+splitter.display.width /
+700
+);
 
-        if (
-          !previous ||
-          Math.hypot(
-            point.x -
-            previous.x,
+if (
+!previous ||
+Math.hypot(
+point.x -
+previous.x,
 
-            point.y -
-            previous.y
-          ) >=
-          minStep
-        ) {
-          splitter
-            .lassoPoints
-            .push(
-              point
-            );
-        }
+point.y -
+previous.y
+) >=
+minStep
+) {
+splitter
+.lassoPoints
+.push(
+point
+);
+}
 
-      } else {
-        drawBrushSegment(
-          splitter.lastPoint,
-          point
-        );
+} else {
+drawBrushSegment(
+splitter.lastPoint,
+point
+);
 
-        splitter.lastPoint =
-          point;
-      }
+splitter.lastPoint =
+point;
+}
 
-      renderSplitter();
-    }
-  );
+renderSplitter();
+}
+);
 
 
 function finishSplitterPointer() {
-  if (
-    !splitter.painting
-  ) {
-    return;
-  }
+if (
+!splitter.painting
+) {
+return;
+}
 
-  splitter.painting =
-    false;
+splitter.painting =
+false;
 
-  if (
-    splitter.tool ===
-    'lasso'
-  ) {
-    fillLasso(
-      splitter.lassoPoints
-    );
+if (
+splitter.tool ===
+'lasso'
+) {
+fillLasso(
+splitter.lassoPoints
+);
 
-    splitter.lassoPoints =
-      [];
-  }
+splitter.lassoPoints =
+[];
+}
 
-  splitter.lastPoint =
-    null;
+splitter.lastPoint =
+null;
 
-  renderSplitter();
+renderSplitter();
 
-  renderSplitPreview();
+renderSplitPreview();
 }
 
 
 splitter.display
-  .addEventListener(
-    'pointerup',
-    finishSplitterPointer
-  );
+.addEventListener(
+'pointerup',
+finishSplitterPointer
+);
 
 
 splitter.display
-  .addEventListener(
-    'pointercancel',
-    finishSplitterPointer
-  );
+.addEventListener(
+'pointercancel',
+finishSplitterPointer
+);
 
 
 splitter.display
-  .addEventListener(
-    'pointerleave',
-    () => {
-      q('#splitterCursor')
-        .hidden =
-        true;
-    }
-  );
+.addEventListener(
+'pointerleave',
+() => {
+q('#splitterCursor')
+.hidden =
+true;
+}
+);
 
 
 /* =========================================================
@@ -8734,59 +10341,63 @@ splitter.display
    ========================================================= */
 
 q('#undoSplit')
-  .addEventListener(
-    'click',
-    async () => {
-      if (
-        !splitBackup
-      ) {
-        return;
-      }
+.addEventListener(
+'click',
+async () => {
+if (
+!splitBackup
+) {
+return;
+}
 
-      const backup =
-        splitBackup;
+const backup =
+splitBackup;
 
-      splitBackup =
-        null;
+splitBackup =
+null;
 
-      q('#undoSplit')
-        .disabled =
-        true;
+q('#undoSplit')
+.disabled =
+true;
 
-      animator.pause();
+animator.pause();
 
-      animator.currentTime =
-        0;
+animator.currentTime =
+0;
 
-      animator.manualStates
-        .clear();
+animator.manualStates
+.clear();
 
-      await engine.load(
-        backup
-      );
+await engine.load(
+backup
+);
 
-      multiSelection.clear();
+rootSelected =
+false;
 
-      timelinePreviewActive =
-        false;
+multiSelection.clear();
 
-      renderLayers();
+timelinePreviewActive =
+false;
 
-      syncInspector();
+renderLayers();
 
-      syncTimelineUI();
+syncInspector();
 
-      renderTimelineLists();
+syncTimelineUI();
 
-      engine.draw();
+renderTimelineLists();
 
-      drawSelectionOverlay();
+engine.draw();
 
-      await persistProject({
-        broadcast: true
-      });
-    }
-  );
+drawSelectionOverlay();
+
+await persistProject({
+broadcast:
+true
+});
+}
+);
 
 
 /* =========================================================
@@ -8794,84 +10405,108 @@ q('#undoSplit')
    ========================================================= */
 
 document.addEventListener(
-  'keydown',
-  event => {
-    if (
-      event.key ===
-      'Escape'
-    ) {
-      if (
-        q('#splitterModal')
-          .classList
-          .contains(
-            'open'
-          )
-      ) {
-        closeSplitter();
+'keydown',
+event => {
+if (
+event.key ===
+'Escape'
+) {
+if (
+q('#splitterModal')
+.classList
+.contains(
+'open'
+)
+) {
+closeSplitter();
 
-        return;
-      }
+return;
+}
 
-      if (
-        !organicPanel.hidden
-      ) {
-        closeOrganicPanel();
+if (
+!organicPanel.hidden
+) {
+closeOrganicPanel();
 
-        return;
-      }
+return;
+}
 
-      if (
-        multiSelection.size
-      ) {
-        multiSelection.clear();
+if (rootSelected) {
+rootSelected =
+false;
 
-        renderLayers();
+renderLayers();
 
-        syncModeUI();
+syncInspector();
 
-        engine.draw();
+syncModeUI();
 
-        drawSelectionOverlay();
-      }
-    }
+engine.draw();
 
-    if (
-      (
-        event.ctrlKey ||
-        event.metaKey
-      ) &&
-      event.key
-        .toLowerCase() ===
-        'z'
-    ) {
-      event.preventDefault();
+drawSelectionOverlay();
 
-      undoLastChange();
-    }
+return;
+}
 
-    if (
-      (
-        event.ctrlKey ||
-        event.metaKey
-      ) &&
-      event.key
-        .toLowerCase() ===
-        'a' &&
-      ![
-        'INPUT',
-        'TEXTAREA',
-        'SELECT'
-      ].includes(
-        document.activeElement
-          ?.tagName
-      )
-    ) {
-      event.preventDefault();
+if (
+multiSelection.size
+) {
+multiSelection.clear();
 
-      q('#selectAllLayers')
-        .click();
-    }
-  }
+renderLayers();
+
+syncModeUI();
+
+engine.draw();
+
+drawSelectionOverlay();
+}
+}
+
+
+/* CTRL + Z */
+
+if (
+(
+event.ctrlKey ||
+event.metaKey
+) &&
+event.key
+.toLowerCase() ===
+'z'
+) {
+event.preventDefault();
+
+undoLastChange();
+}
+
+
+/* CTRL + A */
+
+if (
+(
+event.ctrlKey ||
+event.metaKey
+) &&
+event.key
+.toLowerCase() ===
+'a' &&
+![
+'INPUT',
+'TEXTAREA',
+'SELECT'
+]
+.includes(
+document.activeElement
+?.tagName
+)
+) {
+event.preventDefault();
+
+q('#selectAllLayers')
+.click();
+}
+}
 );
 
 
@@ -8880,31 +10515,31 @@ document.addEventListener(
    ========================================================= */
 
 function previewFrame(
-  now
+now
 ) {
-  if (
-    !animator.playing &&
-    !canvasInteraction
-  ) {
-    const evaluationTime =
-      timelinePreviewActive
-        ? animator.currentTime
-        : -1;
+if (
+!animator.playing &&
+!canvasInteraction
+) {
+const evaluationTime =
+timelinePreviewActive
+? animator.currentTime
+: -1;
 
-    animator.evaluate(
-      evaluationTime,
-      true,
-      now
-    );
+animator.evaluate(
+evaluationTime,
+true,
+now
+);
 
-    engine.draw();
+engine.draw();
 
-    drawSelectionOverlay();
-  }
+drawSelectionOverlay();
+}
 
-  requestAnimationFrame(
-    previewFrame
-  );
+requestAnimationFrame(
+previewFrame
+);
 }
 
 
@@ -8913,69 +10548,72 @@ function previewFrame(
    ========================================================= */
 
 async function boot() {
-  try {
-    const saved =
-      await loadCurrentProject();
+try {
+const saved =
+await loadCurrentProject();
 
-    if (
-      saved?.layers
-        ?.length
-    ) {
-      await engine.load(
-        saved
-      );
-    }
+if (
+saved?.layers
+?.length
+) {
+await engine.load(
+saved
+);
+}
 
-  } catch (error) {
-    console.warn(
-      'No se pudo restaurar el proyecto:',
-      error
-    );
-  }
+} catch (error) {
+console.warn(
+'No se pudo restaurar el proyecto:',
+error
+);
+}
 
-  editorMode =
-    'design';
+editorMode =
+'design';
 
-  multiSelection.clear();
+rootSelected =
+false;
 
-  selectedAnimationRef =
-    null;
+multiSelection.clear();
 
-  renderLayers();
+selectedAnimationRef =
+null;
 
-  syncInspector();
+renderLayers();
 
-  syncModeUI();
+syncInspector();
 
-  syncTimelineUI();
+syncModeUI();
 
-  renderTimelineLists();
+syncTimelineUI();
 
-  updateSelectedAnimationLabel();
+renderTimelineLists();
 
-  syncLayerMotionButton();
+updateSelectedAnimationLabel();
 
-  engine.draw();
+syncLayerMotionButton();
 
-  drawSelectionOverlay();
+engine.draw();
 
-  requestAnimationFrame(
-    fitStage
-  );
+drawSelectionOverlay();
 
-  requestAnimationFrame(
-    previewFrame
-  );
+requestAnimationFrame(
+fitStage
+);
+
+requestAnimationFrame(
+previewFrame
+);
 }
 
 
 window.addEventListener(
-  'resize',
-  () => {
-    requestAnimationFrame(
-      fitStage
-    );
-  }
+'resize',
+() => {
+requestAnimationFrame(
+fitStage
+);
+}
 );
 
 
